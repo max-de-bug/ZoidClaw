@@ -1,0 +1,22 @@
+# Rust artifacts
+/target
+Cargo.lock.backup
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS specific files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.log
+tmp/
