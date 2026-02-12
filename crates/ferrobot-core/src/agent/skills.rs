@@ -75,14 +75,14 @@ impl SkillsLoader {
             return String::new();
         }
 
-        let mut lines = vec!["<skills>".to_string()];
+        let mut lines = vec!["<skills>".to_owned()];
         for skill in &skills {
             lines.push(format!(
                 "  <skill name=\"{}\" source=\"{}\">{}</skill>",
                 skill.name, skill.source, skill.description
             ));
         }
-        lines.push("</skills>".to_string());
+        lines.push("</skills>".to_owned());
         lines.join("\n")
     }
 
@@ -108,7 +108,7 @@ impl SkillsLoader {
                 .file_name()
                 .unwrap_or_default()
                 .to_string_lossy()
-                .to_string();
+                .into_owned();
 
             let description = std::fs::read_to_string(&skill_file)
                 .ok()
@@ -119,7 +119,7 @@ impl SkillsLoader {
                 name,
                 description,
                 path: skill_file,
-                source: source.into(),
+                source: source.to_owned(),
             });
         }
     }

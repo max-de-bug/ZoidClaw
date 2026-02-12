@@ -21,6 +21,11 @@ use ferrobot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, 
 use ferrobot_core::tools::shell::ExecTool;
 use ferrobot_core::tools::web::{WebFetchTool, WebSearchTool};
 use ferrobot_core::tools::ToolRegistry;
+use ferrobot_core::gateway::AgentBridge;
+#[cfg(feature = "telegram")]
+use ferrobot_core::gateway::channels::telegram::TelegramTransport;
+#[cfg(feature = "discord")]
+use ferrobot_core::gateway::channels::discord::DiscordTransport;
 
 #[derive(Parser)]
 #[command(
@@ -58,6 +63,9 @@ enum Commands {
         #[command(subcommand)]
         action: CronCommands,
     },
+
+    /// Start the bot in background mode (Telegram/Discord)
+    Bot,
 
     /// Manage conversation sessions
     Sessions {
@@ -116,12 +124,122 @@ async fn main() -> Result<()> {
 
     match cli.command {
         Some(Commands::Chat { session, model }) => cmd_chat(&session, model.as_deref()).await?,
+        Some(Commands::Bot) => cmd_bot().await?,
         Some(Commands::Onboard) => cmd_onboard()?,
         Some(Commands::Status) => cmd_status()?,
         Some(Commands::Cron { action }) => cmd_cron(action)?,
         Some(Commands::Sessions { action }) => cmd_sessions(action)?,
         None => cmd_chat("default", None).await?,
     }
+
+    Ok(())
+}
+
+async fn cmd_bot() -> Result<()> {
+    let config = Config::load()?;
+    let workspace = config.workspace_path();
+    
+    // Resolve provider
+    let (provider_name, entry) = config
+        .providers
+        .find_active()
+        .ok_or_else(|| anyhow::anyhow!("No LLM provider configured."))?;
+
+    let provider = OpenAiProvider::new(
+        provider_name,
+        &entry.api_key,
+        entry.api_base.as_deref(),
+        &config.agents.defaults.model,
+    );
+
+    // Set up tools
+    let mut tools = ToolRegistry::new();
+    tools.register(Box::new(ReadFileTool::new(workspace.clone(), false)));
+    tools.register(Box::new(WriteFileTool::new(workspace.clone(), false)));
+    tools.register(Box::new(EditFileTool::new(workspace.clone(), false)));
+    tools.register(Box::new(ListDirTool::new(workspace.clone(), false)));
+    tools.register(Box::new(ExecTool::new(workspace.clone(), false, 30)));
+    tools.register(Box::new(WebFetchTool::new()));
+
+    let agent_config = AgentConfig {
+        model: config.agents.defaults.model.clone(),
+        max_tokens: config.agents.defaults.max_tokens,
+        temperature: config.agents.defaults.temperature,
+        max_iterations: config.agents.defaults.max_tool_iterations,
+        workspace: workspace.clone(),
+    };
+
+    let agent = AgentLoop::new(Box::new(provider), tools, agent_config);
+    let (bus, receivers) = ferrobot_core::bus::MessageBus::new(100);
+    let bus_arc = std::sync::Arc::new(tokio::sync::Mutex::new(bus));
+    
+    let mut tasks = Vec::new();
+
+    // 1. Outbound Dispatcher Task
+    let bus_for_dispatch = std::sync::Arc::clone(&bus_arc);
+    let outbound_rx = receivers.outbound_rx;
+    let inbound_rx = receivers.inbound_rx;
+    
+    tasks.push(tokio::spawn(async move {
+        let mut bus_locked = bus_for_dispatch.lock().await;
+        bus_locked.dispatch_outbound(outbound_rx).await;
+    }));
+
+    // 2. Agent Bridge Task
+    let bus_for_bridge = std::sync::Arc::clone(&bus_arc);
+    let bridge = AgentBridge::new(bus_for_bridge, agent);
+    tasks.push(tokio::spawn(async move {
+        if let Err(e) = bridge.run(inbound_rx).await {
+            tracing::error!("Agent bridge failed: {}", e);
+        }
+    }));
+
+    // 3. Telegram Transport
+    #[cfg(feature = "telegram")]
+    {
+        if let Some(ref tel_config) = config.channels.telegram {
+            if tel_config.enabled && !tel_config.token.is_empty() {
+                let bus_for_tel = std::sync::Arc::clone(&bus_arc);
+                let transport = TelegramTransport::new(tel_config.token.clone(), bus_for_tel);
+                tasks.push(tokio::spawn(async move {
+                    if let Err(e) = transport.run().await {
+                        tracing::error!("Telegram transport failed: {}", e);
+                    }
+                }));
+            }
+        }
+    }
+
+    // 4. Discord Transport
+    #[cfg(feature = "discord")]
+    {
+        if let Some(ref disc_config) = config.channels.discord {
+            if disc_config.enabled && !disc_config.token.is_empty() {
+                let bus_for_disc = std::sync::Arc::clone(&bus_arc);
+                let transport = DiscordTransport::new(disc_config.token.clone(), bus_for_disc);
+                tasks.push(tokio::spawn(async move {
+                    if let Err(e) = transport.run().await {
+                        tracing::error!("Discord transport failed: {}", e);
+                    }
+                }));
+            }
+        }
+    }
+
+    if tasks.is_empty() {
+        println!("  ⚠️ No bot channels enabled. Please check your config.");
+        return Ok(());
+    }
+
+    println!("  🤖 ferrobot bot mode starting...");
+    println!("  Active channels: Telegram: {}, Discord: {}", 
+        config.channels.telegram.as_ref().map(|c| c.enabled).unwrap_or(false),
+        config.channels.discord.as_ref().map(|c| c.enabled).unwrap_or(false)
+    );
+    println!("  ─────────────────────────────────────");
+    
+    // Wait for all tasks
+    futures::future::join_all(tasks).await;
 
     Ok(())
 }

@@ -22,40 +22,37 @@ type OutboundCallback =
 /// outbound channel to registered subscribers.
 pub struct MessageBus {
     inbound_tx: mpsc::Sender<InboundMessage>,
-    inbound_rx: mpsc::Receiver<InboundMessage>,
     outbound_tx: mpsc::Sender<OutboundMessage>,
-    outbound_rx: mpsc::Receiver<OutboundMessage>,
     subscribers: HashMap<String, Vec<OutboundCallback>>,
+}
+
+pub struct MessageBusReceivers {
+    pub inbound_rx: mpsc::Receiver<InboundMessage>,
+    pub outbound_rx: mpsc::Receiver<OutboundMessage>,
 }
 
 impl MessageBus {
     /// Create a new message bus with the given channel capacity.
-    pub fn new(capacity: usize) -> Self {
+    pub fn new(capacity: usize) -> (Self, MessageBusReceivers) {
         let (inbound_tx, inbound_rx) = mpsc::channel(capacity);
         let (outbound_tx, outbound_rx) = mpsc::channel(capacity);
 
-        Self {
-            inbound_tx,
-            inbound_rx,
-            outbound_tx,
-            outbound_rx,
-            subscribers: HashMap::new(),
-        }
+        (
+            Self {
+                inbound_tx,
+                outbound_tx,
+                subscribers: HashMap::new(),
+            },
+            MessageBusReceivers {
+                inbound_rx,
+                outbound_rx,
+            },
+        )
     }
 
     /// Get a cloneable sender for publishing inbound messages.
     pub fn inbound_sender(&self) -> mpsc::Sender<InboundMessage> {
         self.inbound_tx.clone()
-    }
-
-    /// Get a cloneable sender for publishing outbound messages.
-    pub fn outbound_sender(&self) -> mpsc::Sender<OutboundMessage> {
-        self.outbound_tx.clone()
-    }
-
-    /// Receive the next inbound message (blocks until available).
-    pub async fn recv_inbound(&mut self) -> Option<InboundMessage> {
-        self.inbound_rx.recv().await
     }
 
     /// Publish an outbound message.
@@ -80,8 +77,8 @@ impl MessageBus {
 
     /// Dispatch outbound messages to subscribers.
     /// Run this as a background task via `tokio::spawn`.
-    pub async fn dispatch_outbound(&mut self) {
-        while let Some(msg) = self.outbound_rx.recv().await {
+    pub async fn dispatch_outbound(&mut self, mut outbound_rx: mpsc::Receiver<OutboundMessage>) {
+        while let Some(msg) = outbound_rx.recv().await {
             if let Some(callbacks) = self.subscribers.get(&msg.channel) {
                 for callback in callbacks {
                     let fut = callback(msg.clone());
@@ -104,12 +101,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_inbound_send_receive() {
-        let mut bus = MessageBus::new(16);
+        let (bus, mut receivers) = MessageBus::new(16);
         let tx = bus.inbound_sender();
 
         tx.send(InboundMessage::cli("hello")).await.unwrap();
 
-        let msg = bus.recv_inbound().await.unwrap();
+        let msg = receivers.inbound_rx.recv().await.unwrap();
         assert_eq!(msg.content, "hello");
         assert_eq!(msg.channel, "cli");
     }

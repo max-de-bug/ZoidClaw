@@ -237,6 +237,7 @@ impl Default for ExecConfig {
 #[serde(default)]
 pub struct ChannelsConfig {
     pub telegram: Option<TelegramConfig>,
+    pub discord: Option<DiscordConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -248,6 +249,24 @@ pub struct TelegramConfig {
 }
 
 impl Default for TelegramConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            token: String::new(),
+            allow_from: Vec::new(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct DiscordConfig {
+    pub enabled: bool,
+    pub token: String,
+    pub allow_from: Vec<String>,
+}
+
+impl Default for DiscordConfig {
     fn default() -> Self {
         Self {
             enabled: false,

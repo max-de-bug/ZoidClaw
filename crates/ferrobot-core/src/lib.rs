@@ -42,6 +42,7 @@ pub mod agent;
 pub mod bus;
 pub mod config;
 pub mod cron;
+pub mod gateway;
 pub mod provider;
 pub mod session;
 pub mod tools;
