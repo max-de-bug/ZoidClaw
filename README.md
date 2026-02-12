@@ -1,106 +1,143 @@
-# 🤖 ferrobot
+# 🤖 Ferrobot
 
-**An ultra-lightweight personal AI assistant, written in Rust.**
+[![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)](https://github.com/max-de-bug/ferrobot)
 
-> Inspired by OpenClaw — blazing-fast, zero runtime dependencies, single binary.
+**Ferrobot** is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot), it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
 
----
+## 🚀 Key Features
 
-## Why ferrobot?
+- **Multi-Channel Support**: Interact via CLI, **Telegram**, or **Discord**.
+- **Agent Bridge**: Decoupled architecture using a concurrent `MessageBus`.
+- **Tool-Use (Function Calling)**: Capability to read/write files, execute shell commands, and fetch web content.
+- **Cron Jobs**: Schedule automated AI tasks using standard cron syntax or intervals.
+- **Session Persistence**: Persistent conversation threads scoped to users and channels.
+- **Zero Runtime Dependencies**: Just a single binary and a config file.
 
-Ferrobot is designed for developers who want a local, scriptable AI assistant without the bloat of Python environments or heavy runtime dependencies.
+## 🏗️ Architecture
 
-- **Single ~5MB binary** vs heavy multi-hundred MB environments.
-- **~5ms Cold start** — instant responsiveness.
-- **Direct HTTP** — no intermediate wrappers like LiteLLM.
-- **True multi-threaded** via Tokio for high-performance tool execution.
-- **Compile-time safety** for configuration and tool parameters.
+Ferrobot uses a event-driven architecture centered around an asynchronous message bus.
 
-## Features
+```mermaid
+graph TD
+    User([User])
+    subgraph "Transports"
+        CLI[CLI Transport]
+        TG[Telegram Transport]
+        DC[Discord Transport]
+    end
+    Bus{Concurrent Message Bus}
+    Bridge[Agent Bridge]
+    Loop[Agent Loop]
+    LLM(LLM Provider)
+    Tools[Tool Registry]
 
-- **Direct LLM API access** — No LiteLLM middleman. Works with OpenAI, Anthropic, DeepSeek, Groq, Gemini, OpenRouter, or any vLLM endpoint.
-- **Tool calling** — Read/write/edit files, execute shell commands, search the web, fetch pages.
-- **Persistent memory** — Daily notes and long-term memory in plain Markdown.
-- **Session management** — JSONL-persisted conversation history.
-- **Skills system** — Learn new capabilities from Markdown-based skill files.
-- **Cron scheduler** — Schedule recurring tasks with cron expressions.
-- **Extensible** — Add tools and channels via Rust traits.
-
-## Quick Start
-
-```bash
-# Build from source
-cargo build --release
-
-# First-time setup (creates ~/.ferrobot/config.json)
-./target/release/ferrobot onboard
-
-# Edit config with your API key
-# Then start chatting:
-./target/release/ferrobot chat
+    User <--> CLI
+    User <--> TG
+    User <--> DC
+    
+    CLI <--> Bus
+    TG <--> Bus
+    DC <--> Bus
+    
+    Bus <--> Bridge
+    Bridge <--> Loop
+    Loop <--> LLM
+    Loop <--> Tools
 ```
 
-## Commands
+## 🛠️ Getting Started
 
-```bash
-ferrobot              # Start interactive chat (default session)
-ferrobot chat         # Start interactive chat
-ferrobot chat -s work # Use named session
-ferrobot chat -m gpt-4o  # Override model
-ferrobot onboard      # Create default config
-ferrobot status       # Show config & health
-ferrobot cron list    # List scheduled jobs
-ferrobot sessions     # Manage sessions
-```
+### Prerequisites
 
-## Configuration
+- [Rust Toolchain](https://rustup.rs/) (Stable)
 
-Located at `~/.ferrobot/config.json`:
+### Installation
+
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/max-de-bug/ferrobot.git
+    cd ferrobot
+    ```
+
+2.  **Build**:
+    ```bash
+    cargo build --release
+    ```
+
+3.  **Onboard**:
+    Generate a default configuration:
+    ```bash
+    ./target/release/ferrobot onboard
+    ```
+
+## ⚙️ Configuration
+
+Ferrobot is configured via `~/.ferrobot/config.json`. 
 
 ```json
 {
   "providers": {
     "openrouter": {
-      "apiKey": "sk-or-v1-YOUR_KEY_HERE"
+      "apiKey": "YOUR_OPENROUTER_KEY"
     }
   },
   "agents": {
     "defaults": {
-      "model": "anthropic/claude-sonnet-4-5",
-      "maxTokens": 8192,
-      "temperature": 0.7
+      "model": "anthropic/claude-3-5-sonnet",
+      "workspace": "~/.ferrobot/workspace"
     }
   },
-  "tools": {
-    "webSearch": {
-      "apiKey": "YOUR_BRAVE_API_KEY"
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "token": "YOUR_TELEGRAM_TOKEN"
+    },
+    "discord": {
+      "enabled": false,
+      "token": "YOUR_DISCORD_TOKEN"
     }
   }
 }
 ```
 
-## Architecture
+## 🤖 Usage
 
-```
-ferrobot/
-├── Cargo.toml                 # Workspace root
-├── crates/
-│   ├── ferrobot-core/         # Library crate
-│   │   └── src/
-│   │       ├── lib.rs         # Module declarations
-│   │       ├── config/        # Typed JSON config
-│   │       ├── provider/      # LLM provider trait + OpenAI HTTP client
-│   │       ├── bus/           # Async message bus (tokio mpsc)
-│   │       ├── tools/         # Tool trait + registry + built-in tools
-│   │       ├── agent/         # Agent loop, memory, skills, context
-│   │       ├── session/       # JSONL session persistence
-│   │       └── cron/          # Cron scheduler
-│   └── ferrobot-cli/          # Binary crate
-│       └── src/
-│           └── main.rs        # CLI with clap
-└── README.md
+### Interactive Chat (CLI)
+Start a standard interactive session:
+```bash
+ferrobot chat
 ```
 
-## License
+### Bot Mode (Telegram/Discord)
+Run Ferrobot in the background to serve external channels:
+```bash
+ferrobot bot
+```
 
-MIT
+### Scheduling Jobs
+Add a cron job to keep you updated:
+```bash
+ferrobot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summarize the latest AI news."
+```
+
+## 📡 Channel Setup
+
+### Telegram
+1. Message [@BotFather](https://t.me/botfather) to create a bot and get a token.
+2. Enable `telegram` in your `config.json`.
+3. Run `ferrobot bot`.
+
+### Discord
+1. Create an app on the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Add a Bot, enable `Message Content Intent`.
+3. Enable `discord` in your `config.json`.
+4. Run `ferrobot bot`.
+
+## 🛡️ License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+*Built with 🦀 and 🤖 by the Ferrobot Team.*
