@@ -1,6 +1,6 @@
-//! Configuration module for ferrobot.
+//! Configuration module for crabbybot.
 //!
-//! Loads typed configuration from `~/.ferrobot/config.json`.
+//! Loads typed configuration from `~/.crabbybot/config.json`.
 //! All fields use `serde` for zero-boilerplate deserialization.
 
 use serde::Deserialize;
@@ -31,7 +31,7 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Load configuration from the default path (`~/.ferrobot/config.json`).
+    /// Load configuration from the default path (`~/.crabbybot/config.json`).
     pub fn load() -> anyhow::Result<Self> {
         let path = Self::default_path();
         if path.exists() {
@@ -54,7 +54,7 @@ impl Config {
     pub fn default_path() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ferrobot")
+            .join(".crabbybot")
             .join("config.json")
     }
 
@@ -62,7 +62,7 @@ impl Config {
     pub fn config_dir() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ferrobot")
+            .join(".crabbybot")
     }
 
     /// Get the resolved workspace path.
@@ -164,7 +164,7 @@ pub struct AgentDefaults {
 impl Default for AgentDefaults {
     fn default() -> Self {
         Self {
-            workspace: "~/.ferrobot/workspace".into(),
+            workspace: "~/.crabbybot/workspace".into(),
             model: "anthropic/claude-sonnet-4-5".into(),
             max_tokens: 8192,
             temperature: 0.7,

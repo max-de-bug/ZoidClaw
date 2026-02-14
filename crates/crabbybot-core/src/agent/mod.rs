@@ -1,6 +1,6 @@
 //! Agent loop: the core processing engine.
 //!
-//! This is the heart of ferrobot. The loop:
+//! This is the heart of crabbybot. The loop:
 //! 1. Receives a user message
 //! 2. Builds context (system prompt + history + current message)
 //! 3. Calls the LLM

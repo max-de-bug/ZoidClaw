@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_add_and_list_jobs() {
-        let tmp = std::env::temp_dir().join("ferrobot_test_cron");
+        let tmp = std::env::temp_dir().join("crabbybot_test_cron");
         let _ = std::fs::create_dir_all(&tmp);
 
         let mut service = CronService::new(&tmp);

@@ -1,38 +1,38 @@
-//! ferrobot CLI — interactive chat, onboarding, and status commands.
+//! 🦀 crabbybot CLI — interactive chat, onboarding, and status commands.
 //!
 //! Usage:
-//!   ferrobot chat          — Start an interactive chat session
-//!   ferrobot onboard       — Create a default configuration
-//!   ferrobot status        — Show current configuration and health
-//!   ferrobot cron list     — List scheduled jobs
-//!   ferrobot sessions      — List conversation sessions
+//!   crabbybot chat          — Start an interactive chat session
+//!   crabbybot onboard       — Create a default configuration
+//!   crabbybot status        — Show current configuration and health
+//!   crabbybot cron list      — List scheduled jobs
+//!   crabbybot sessions       — List conversation sessions
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::io::{self, Write};
 
 
-use ferrobot_core::agent::{AgentConfig, AgentLoop};
-use ferrobot_core::config::Config;
-use ferrobot_core::cron::{CronService, Schedule};
-use ferrobot_core::provider::openai::OpenAiProvider;
-use ferrobot_core::session::SessionManager;
-use ferrobot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
-use ferrobot_core::tools::shell::ExecTool;
-use ferrobot_core::tools::web::{WebFetchTool, WebSearchTool};
-use ferrobot_core::tools::ToolRegistry;
-use ferrobot_core::gateway::AgentBridge;
+use crabbybot_core::agent::{AgentConfig, AgentLoop};
+use crabbybot_core::config::Config;
+use crabbybot_core::cron::{CronService, Schedule};
+use crabbybot_core::provider::openai::OpenAiProvider;
+use crabbybot_core::session::SessionManager;
+use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
+use crabbybot_core::tools::shell::ExecTool;
+use crabbybot_core::tools::web::{WebFetchTool, WebSearchTool};
+use crabbybot_core::tools::ToolRegistry;
+use crabbybot_core::gateway::AgentBridge;
 #[cfg(feature = "telegram")]
-use ferrobot_core::gateway::channels::telegram::TelegramTransport;
+use crabbybot_core::gateway::channels::telegram::TelegramTransport;
 #[cfg(feature = "discord")]
-use ferrobot_core::gateway::channels::discord::DiscordTransport;
+use crabbybot_core::gateway::channels::discord::DiscordTransport;
 
 #[derive(Parser)]
 #[command(
-    name = "ferrobot",
+    name = "crabbybot",
     version,
     about = "An ultra-lightweight personal AI assistant",
-    long_about = "ferrobot — a blazing-fast AI assistant written in Rust.\n\nZero runtime dependencies. Single binary. Direct LLM API access."
+    long_about = "🦀 crabbybot — a blazing-fast AI assistant written in Rust.\n\nZero runtime dependencies. Single binary. Direct LLM API access."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -153,13 +153,21 @@ async fn cmd_bot() -> Result<()> {
     );
 
     // Set up tools
+    let restrict = config.tools.restrict_to_workspace;
     let mut tools = ToolRegistry::new();
-    tools.register(Box::new(ReadFileTool::new(workspace.clone(), false)));
-    tools.register(Box::new(WriteFileTool::new(workspace.clone(), false)));
-    tools.register(Box::new(EditFileTool::new(workspace.clone(), false)));
-    tools.register(Box::new(ListDirTool::new(workspace.clone(), false)));
-    tools.register(Box::new(ExecTool::new(workspace.clone(), false, 30)));
+    tools.register(Box::new(ReadFileTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(WriteFileTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(EditFileTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(ListDirTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(ExecTool::new(workspace.clone(), restrict, config.tools.exec.timeout_seconds)));
     tools.register(Box::new(WebFetchTool::new()));
+
+    if !config.tools.web_search.api_key.is_empty() {
+        tools.register(Box::new(WebSearchTool::new(
+            &config.tools.web_search.api_key,
+            config.tools.web_search.max_results,
+        )));
+    }
 
     let agent_config = AgentConfig {
         model: config.agents.defaults.model.clone(),
@@ -170,37 +178,26 @@ async fn cmd_bot() -> Result<()> {
     };
 
     let agent = AgentLoop::new(Box::new(provider), tools, agent_config);
-    let (bus, receivers) = ferrobot_core::bus::MessageBus::new(100);
+    let (bus, receivers) = crabbybot_core::bus::MessageBus::new(100);
     let bus_arc = std::sync::Arc::new(tokio::sync::Mutex::new(bus));
     
     let mut tasks = Vec::new();
-
-    // 1. Outbound Dispatcher Task
-    let bus_for_dispatch = std::sync::Arc::clone(&bus_arc);
-    let outbound_rx = receivers.outbound_rx;
     let inbound_rx = receivers.inbound_rx;
-    
-    tasks.push(tokio::spawn(async move {
-        let mut bus_locked = bus_for_dispatch.lock().await;
-        bus_locked.dispatch_outbound(outbound_rx).await;
-    }));
 
-    // 2. Agent Bridge Task
-    let bus_for_bridge = std::sync::Arc::clone(&bus_arc);
-    let bridge = AgentBridge::new(bus_for_bridge, agent);
-    tasks.push(tokio::spawn(async move {
-        if let Err(e) = bridge.run(inbound_rx).await {
-            tracing::error!("Agent bridge failed: {}", e);
-        }
-    }));
+    // 1. Start transports FIRST so they register their outbound subscribers
+    //    before the dispatch loop begins processing messages.
 
-    // 3. Telegram Transport
     #[cfg(feature = "telegram")]
     {
         if let Some(ref tel_config) = config.channels.telegram {
             if tel_config.enabled && !tel_config.token.is_empty() {
                 let bus_for_tel = std::sync::Arc::clone(&bus_arc);
-                let transport = TelegramTransport::new(tel_config.token.clone(), bus_for_tel);
+                let allow_from = tel_config.allow_from.clone();
+                let transport = TelegramTransport::new(
+                    tel_config.token.clone(),
+                    bus_for_tel,
+                    allow_from,
+                );
                 tasks.push(tokio::spawn(async move {
                     if let Err(e) = transport.run().await {
                         tracing::error!("Telegram transport failed: {}", e);
@@ -210,13 +207,17 @@ async fn cmd_bot() -> Result<()> {
         }
     }
 
-    // 4. Discord Transport
     #[cfg(feature = "discord")]
     {
         if let Some(ref disc_config) = config.channels.discord {
             if disc_config.enabled && !disc_config.token.is_empty() {
                 let bus_for_disc = std::sync::Arc::clone(&bus_arc);
-                let transport = DiscordTransport::new(disc_config.token.clone(), bus_for_disc);
+                let allow_from = disc_config.allow_from.clone();
+                let transport = DiscordTransport::new(
+                    disc_config.token.clone(),
+                    bus_for_disc,
+                    allow_from,
+                );
                 tasks.push(tokio::spawn(async move {
                     if let Err(e) = transport.run().await {
                         tracing::error!("Discord transport failed: {}", e);
@@ -231,7 +232,25 @@ async fn cmd_bot() -> Result<()> {
         return Ok(());
     }
 
-    println!("  🤖 ferrobot bot mode starting...");
+    // 2. Outbound Dispatcher — uses the shared subscriber map, no bus lock needed
+    let subs = {
+        let bus_locked = bus_arc.lock().await;
+        bus_locked.subscribers()
+    };
+    tasks.push(tokio::spawn(async move {
+        crabbybot_core::bus::dispatch_outbound(subs, receivers.outbound_rx).await;
+    }));
+
+    // 3. Agent Bridge Task
+    let bus_for_bridge = std::sync::Arc::clone(&bus_arc);
+    let bridge = AgentBridge::new(bus_for_bridge, agent);
+    tasks.push(tokio::spawn(async move {
+        if let Err(e) = bridge.run(inbound_rx).await {
+            tracing::error!("Agent bridge failed: {}", e);
+        }
+    }));
+
+    println!("  🦀 crabbybot bot mode starting...");
     println!("  Active channels: Telegram: {}, Discord: {}", 
         config.channels.telegram.as_ref().map(|c| c.enabled).unwrap_or(false),
         config.channels.discord.as_ref().map(|c| c.enabled).unwrap_or(false)
@@ -254,7 +273,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         .providers
         .find_active()
         .ok_or_else(|| anyhow::anyhow!(
-            "No LLM provider configured. Run `ferrobot onboard` first, then edit ~/.ferrobot/config.json"
+            "No LLM provider configured. Run `crabbybot onboard` first, then edit ~/.crabbybot/config.json"
         ))?;
 
     let model = model_override
@@ -303,7 +322,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
 
     // Print header
     println!();
-    println!("  🤖 ferrobot v{}", env!("CARGO_PKG_VERSION"));
+    println!("  🦀 crabbybot v{}", env!("CARGO_PKG_VERSION"));
     println!("  Provider: {} | Model: {}", provider_name, model);
     println!("  Session: {} | Workspace: {}", session_key, workspace.display());
     println!("  {} tools loaded", 6 + if config.tools.web_search.api_key.is_empty() { 0 } else { 1 });
@@ -372,7 +391,7 @@ fn cmd_onboard() -> Result<()> {
     println!();
     println!("  Next steps:");
     println!("  1. Edit the config file and add your API key");
-    println!("  2. Run `ferrobot chat` to start chatting");
+    println!("  2. Run `crabbybot chat` to start chatting");
     println!();
     Ok(())
 }
@@ -384,14 +403,14 @@ fn cmd_status() -> Result<()> {
     let config = Config::load()?;
 
     println!();
-    println!("  🤖 ferrobot status");
+    println!("  🦀 crabbybot status");
     println!("  ─────────────────────────────────────");
 
     // Config file
     if config_path.exists() {
         println!("  Config:    {}", config_path.display());
     } else {
-        println!("  Config:    ❌ Not found (run `ferrobot onboard`)");
+        println!("  Config:    ❌ Not found (run `crabbybot onboard`)");
         return Ok(());
     }
 

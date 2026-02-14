@@ -84,7 +84,7 @@ impl SessionManager {
     pub fn new(_workspace: &Path) -> Self {
         let sessions_dir = dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".ferrobot")
+            .join(".crabbybot")
             .join("sessions");
         let _ = std::fs::create_dir_all(&sessions_dir);
 

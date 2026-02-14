@@ -108,7 +108,7 @@ impl<'a> ContextBuilder<'a> {
         format!(
             r#"# Identity
 
-You are **ferrobot**, an ultra-lightweight personal AI assistant.
+You are **crabbybot** 🦀, an ultra-lightweight personal AI assistant.
 
 ## Environment
 - Workspace: `{}`

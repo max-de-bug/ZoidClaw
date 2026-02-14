@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_memory_store() {
-        let tmp = std::env::temp_dir().join("ferrobot_test_memory");
+        let tmp = std::env::temp_dir().join("crabbybot_test_memory");
         let _ = fs::remove_dir_all(&tmp);
         fs::create_dir_all(&tmp).unwrap();
 

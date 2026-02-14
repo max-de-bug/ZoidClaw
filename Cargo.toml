@@ -1,12 +1,12 @@
 [workspace]
-members = ["crates/ferrobot-core", "crates/ferrobot-cli"]
+members = ["crates/crabbybot-core", "crates/crabbybot-cli"]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-authors = ["ferrobot contributors"]
+authors = ["crabbybot contributors"]
 description = "An ultra-lightweight personal AI assistant written in Rust"
 
 [workspace.dependencies]

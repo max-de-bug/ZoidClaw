@@ -191,7 +191,7 @@ impl Tool for WebFetchTool {
             .get(url)
             .header(
                 "User-Agent",
-                "Mozilla/5.0 (compatible; ferrobot/0.1; +https://github.com/ferrobot)",
+                "Mozilla/5.0 (compatible; crabbybot/0.1; +https://github.com/crabbybot)",
             )
             .send()
             .await;

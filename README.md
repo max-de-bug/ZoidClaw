@@ -1,10 +1,10 @@
-# 🤖 Ferrobot
+# 🦀 Crabbybot
 
 [![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)](https://github.com/max-de-bug/ferrobot)
+[![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)](https://github.com/max-de-bug/crabbybot)
 
-**Ferrobot** is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot), it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
+**Crabbybot** 🦀 is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot), it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
 
 ## 🚀 Key Features
 
@@ -17,7 +17,7 @@
 
 ## 🏗️ Architecture
 
-Ferrobot uses a event-driven architecture centered around an asynchronous message bus.
+Crabbybot uses an event-driven architecture centered around an asynchronous message bus.
 
 ```mermaid
 graph TD
@@ -57,8 +57,8 @@ graph TD
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/max-de-bug/ferrobot.git
-    cd ferrobot
+    git clone https://github.com/max-de-bug/crabbybot.git
+    cd crabbybot
     ```
 
 2.  **Build**:
@@ -69,12 +69,12 @@ graph TD
 3.  **Onboard**:
     Generate a default configuration:
     ```bash
-    ./target/release/ferrobot onboard
+    ./target/release/crabbybot onboard
     ```
 
 ## ⚙️ Configuration
 
-Ferrobot is configured via `~/.ferrobot/config.json`. 
+Crabbybot is configured via `~/.crabbybot/config.json`. 
 
 ```json
 {
@@ -86,7 +86,7 @@ Ferrobot is configured via `~/.ferrobot/config.json`.
   "agents": {
     "defaults": {
       "model": "anthropic/claude-3-5-sonnet",
-      "workspace": "~/.ferrobot/workspace"
+      "workspace": "~/.crabbybot/workspace"
     }
   },
   "channels": {
@@ -107,19 +107,19 @@ Ferrobot is configured via `~/.ferrobot/config.json`.
 ### Interactive Chat (CLI)
 Start a standard interactive session:
 ```bash
-ferrobot chat
+crabbybot chat
 ```
 
 ### Bot Mode (Telegram/Discord)
-Run Ferrobot in the background to serve external channels:
+Run Crabbybot in the background to serve external channels:
 ```bash
-ferrobot bot
+crabbybot bot
 ```
 
 ### Scheduling Jobs
 Add a cron job to keep you updated:
 ```bash
-ferrobot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summarize the latest AI news."
+crabbybot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summarize the latest AI news."
 ```
 
 ## 📡 Channel Setup
@@ -127,17 +127,17 @@ ferrobot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summa
 ### Telegram
 1. Message [@BotFather](https://t.me/botfather) to create a bot and get a token.
 2. Enable `telegram` in your `config.json`.
-3. Run `ferrobot bot`.
+3. Run `crabbybot bot`.
 
 ### Discord
 1. Create an app on the [Discord Developer Portal](https://discord.com/developers/applications).
 2. Add a Bot, enable `Message Content Intent`.
 3. Enable `discord` in your `config.json`.
-4. Run `ferrobot bot`.
+4. Run `crabbybot bot`.
 
 ## 🛡️ License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-*Built with 🦀 and 🤖 by the Ferrobot Team.*
+*Built with 🦀 by the Crabbybot Team.*

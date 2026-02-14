@@ -1,4 +1,4 @@
-//! ferrobot-core: Core library for the ferrobot AI assistant.
+//! 🦀 crabbybot-core: Core library for the crabbybot AI assistant.
 //!
 //! This crate contains all the building blocks for an ultra-lightweight AI assistant:
 //!
@@ -13,10 +13,10 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use ferrobot_core::config::Config;
-//! use ferrobot_core::provider::openai::OpenAiProvider;
-//! use ferrobot_core::agent::{AgentLoop, AgentConfig};
-//! use ferrobot_core::tools::ToolRegistry;
+//! use crabbybot_core::config::Config;
+//! use crabbybot_core::provider::openai::OpenAiProvider;
+//! use crabbybot_core::agent::{AgentLoop, AgentConfig};
+//! use crabbybot_core::tools::ToolRegistry;
 //!
 //! // Load configuration
 //! let config = Config::load().unwrap();
