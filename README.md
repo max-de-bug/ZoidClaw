@@ -1,5 +1,9 @@
 # 🦀 Crabbybot
 
+<div align="center">
+  <img src="assets/images/crabbybot_logo.png" alt="Crabbybot Logo" width="200">
+</div>
+
 [![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)](https://github.com/max-de-bug/crabbybot)
