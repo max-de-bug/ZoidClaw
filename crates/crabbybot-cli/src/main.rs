@@ -10,6 +10,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::io::{self, Write};
+use tokio_util::sync::CancellationToken;
 
 
 use crabbybot_core::agent::{AgentConfig, AgentLoop};
@@ -137,6 +138,17 @@ async fn main() -> Result<()> {
 
 async fn cmd_bot() -> Result<()> {
     let config = Config::load()?;
+
+    // Validate configuration upfront.
+    if let Err(errors) = config.validate() {
+        eprintln!("\n  \x1b[31m❌ Configuration errors:\x1b[0m");
+        for e in &errors {
+            eprintln!("     • {}", e);
+        }
+        eprintln!();
+        anyhow::bail!("Fix the above {} error(s) in ~/.crabbybot/config.json", errors.len());
+    }
+
     let workspace = config.workspace_path();
     
     // Resolve provider
@@ -241,9 +253,10 @@ async fn cmd_bot() -> Result<()> {
         crabbybot_core::bus::dispatch_outbound(subs, receivers.outbound_rx).await;
     }));
 
-    // 3. Agent Bridge Task
+    // 3. Agent Bridge Task — with CancellationToken for graceful shutdown
+    let cancel = CancellationToken::new();
     let bus_for_bridge = std::sync::Arc::clone(&bus_arc);
-    let bridge = AgentBridge::new(bus_for_bridge, agent);
+    let bridge = AgentBridge::new(bus_for_bridge, agent, cancel.clone());
     tasks.push(tokio::spawn(async move {
         if let Err(e) = bridge.run(inbound_rx).await {
             tracing::error!("Agent bridge failed: {}", e);
@@ -255,11 +268,21 @@ async fn cmd_bot() -> Result<()> {
         config.channels.telegram.as_ref().map(|c| c.enabled).unwrap_or(false),
         config.channels.discord.as_ref().map(|c| c.enabled).unwrap_or(false)
     );
+    println!("  Press Ctrl+C for graceful shutdown.");
     println!("  ─────────────────────────────────────");
     
-    // Wait for all tasks
-    futures::future::join_all(tasks).await;
+    // Wait for Ctrl+C, then cancel the bridge gracefully.
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n  ⏳ Shutting down gracefully...");
+            cancel.cancel();
+        }
+        _ = async { futures::future::join_all(tasks).await } => {
+            // All tasks finished on their own.
+        }
+    }
 
+    println!("  ✅ Shutdown complete.");
     Ok(())
 }
 
@@ -267,6 +290,16 @@ async fn cmd_bot() -> Result<()> {
 
 async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()> {
     let config = Config::load()?;
+
+    // Validate configuration upfront.
+    if let Err(errors) = config.validate() {
+        eprintln!("\n  \x1b[31m❌ Configuration errors:\x1b[0m");
+        for e in &errors {
+            eprintln!("     • {}", e);
+        }
+        eprintln!();
+        anyhow::bail!("Fix the above {} error(s) in ~/.crabbybot/config.json", errors.len());
+    }
 
     // Resolve provider
     let (provider_name, entry) = config

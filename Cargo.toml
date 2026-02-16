@@ -25,5 +25,6 @@ thiserror = "2"
 anyhow = "1"
 async-trait = "0.1"
 futures = "0.3"
+tokio-util = { version = "0.7", features = ["rt"] }
 teloxide = { version = "0.13", features = ["macros"] }
 serenity = { version = "0.12", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }

@@ -38,8 +38,17 @@ const PROVIDER_URLS: &[(&str, &str)] = &[
     ),
 ];
 
+/// Maximum number of retry attempts for transient errors.
+const MAX_RETRIES: u32 = 3;
+
+/// Base delay for exponential backoff (milliseconds).
+const BASE_DELAY_MS: u64 = 500;
+
 /// OpenAI-compatible provider that works with any provider exposing the
 /// `/chat/completions` endpoint.
+///
+/// Includes automatic retry with exponential backoff for transient HTTP
+/// errors (429, 500, 502, 503, 504) and network failures.
 pub struct OpenAiProvider {
     client: Client,
     api_key: String,
@@ -81,6 +90,14 @@ impl OpenAiProvider {
             base_url,
             default_model: default_model.to_string(),
         }
+    }
+
+    /// Returns `true` if the HTTP status code is transient and should be retried.
+    fn is_retryable_status(status: reqwest::StatusCode) -> bool {
+        matches!(
+            status.as_u16(),
+            429 | 500 | 502 | 503 | 504
+        )
     }
 }
 
@@ -183,86 +200,117 @@ impl LlmProvider for OpenAiProvider {
 
         debug!(model, url = %url, msg_count = messages.len(), "Sending chat completion request");
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
-            .await
-            .context("Failed to send request to LLM API")?;
+        // ── Retry loop with exponential backoff ────────────────────
+        let mut last_error: Option<anyhow::Error> = None;
 
-        let status = response.status();
-        let body = response
-            .text()
-            .await
-            .context("Failed to read LLM API response body")?;
-
-        if !status.is_success() {
-            // Try to parse error message
-            if let Ok(err) = serde_json::from_str::<ErrorResponse>(&body) {
-                anyhow::bail!("LLM API error ({}): {}", status, err.error.message);
+        for attempt in 0..MAX_RETRIES {
+            if attempt > 0 {
+                let delay = BASE_DELAY_MS * 2u64.pow(attempt - 1);
+                warn!(attempt, delay_ms = delay, "Retrying LLM API request");
+                tokio::time::sleep(std::time::Duration::from_millis(delay)).await;
             }
-            anyhow::bail!("LLM API error ({}): {}", status, body);
+
+            let result = self
+                .client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json")
+                .json(&request_body)
+                .send()
+                .await;
+
+            let response = match result {
+                Ok(r) => r,
+                Err(e) => {
+                    // Network-level errors are always retryable.
+                    warn!(attempt, error = %e, "Network error calling LLM API");
+                    last_error = Some(e.into());
+                    continue;
+                }
+            };
+
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .context("Failed to read LLM API response body")?;
+
+            if !status.is_success() {
+                let err_msg = serde_json::from_str::<ErrorResponse>(&body)
+                    .map(|e| e.error.message)
+                    .unwrap_or_else(|_| body.clone());
+
+                if Self::is_retryable_status(status) {
+                    warn!(attempt, status = %status, "Transient LLM API error, will retry");
+                    last_error = Some(anyhow::anyhow!("LLM API error ({}): {}", status, err_msg));
+                    continue;
+                }
+
+                // Non-retryable error — fail immediately.
+                anyhow::bail!("LLM API error ({}): {}", status, err_msg);
+            }
+
+            // ── Success path — parse the response ──────────────────
+            let completion: CompletionResponse =
+                serde_json::from_str(&body).context("Failed to parse LLM API response")?;
+
+            let choice = completion
+                .choices
+                .into_iter()
+                .next()
+                .context("LLM API returned no choices")?;
+
+            // Parse tool calls
+            let tool_calls = match choice.message.tool_calls {
+                Some(tcs) => tcs
+                    .into_iter()
+                    .filter_map(|tc| {
+                        match serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
+                            &tc.function.arguments,
+                        ) {
+                            Ok(args) => Some(ToolCallRequest {
+                                id: tc.id,
+                                name: tc.function.name,
+                                arguments: args,
+                            }),
+                            Err(e) => {
+                                warn!(
+                                    tool = tc.function.name,
+                                    error = %e,
+                                    raw = tc.function.arguments,
+                                    "Failed to parse tool arguments, skipping"
+                                );
+                                None
+                            }
+                        }
+                    })
+                    .collect(),
+                None => Vec::new(),
+            };
+
+            let usage = completion.usage.map_or(Usage::default(), |u| Usage {
+                prompt_tokens: u.prompt_tokens.unwrap_or(0),
+                completion_tokens: u.completion_tokens.unwrap_or(0),
+                total_tokens: u.total_tokens.unwrap_or(0),
+            });
+
+            debug!(
+                finish_reason = choice.finish_reason.as_deref().unwrap_or("unknown"),
+                tool_calls = tool_calls.len(),
+                tokens = usage.total_tokens,
+                "Received LLM response"
+            );
+
+            return Ok(LlmResponse {
+                content: choice.message.content,
+                tool_calls,
+                finish_reason: choice.finish_reason.unwrap_or_else(|| "stop".into()),
+                usage,
+            });
         }
 
-        let completion: CompletionResponse =
-            serde_json::from_str(&body).context("Failed to parse LLM API response")?;
-
-        let choice = completion
-            .choices
-            .into_iter()
-            .next()
-            .context("LLM API returned no choices")?;
-
-        // Parse tool calls
-        let tool_calls = match choice.message.tool_calls {
-            Some(tcs) => tcs
-                .into_iter()
-                .filter_map(|tc| {
-                    match serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(
-                        &tc.function.arguments,
-                    ) {
-                        Ok(args) => Some(ToolCallRequest {
-                            id: tc.id,
-                            name: tc.function.name,
-                            arguments: args,
-                        }),
-                        Err(e) => {
-                            warn!(
-                                tool = tc.function.name,
-                                error = %e,
-                                raw = tc.function.arguments,
-                                "Failed to parse tool arguments, skipping"
-                            );
-                            None
-                        }
-                    }
-                })
-                .collect(),
-            None => Vec::new(),
-        };
-
-        let usage = completion.usage.map_or(Usage::default(), |u| Usage {
-            prompt_tokens: u.prompt_tokens.unwrap_or(0),
-            completion_tokens: u.completion_tokens.unwrap_or(0),
-            total_tokens: u.total_tokens.unwrap_or(0),
-        });
-
-        debug!(
-            finish_reason = choice.finish_reason.as_deref().unwrap_or("unknown"),
-            tool_calls = tool_calls.len(),
-            tokens = usage.total_tokens,
-            "Received LLM response"
-        );
-
-        Ok(LlmResponse {
-            content: choice.message.content,
-            tool_calls,
-            finish_reason: choice.finish_reason.unwrap_or_else(|| "stop".into()),
-            usage,
-        })
+        // All retries exhausted.
+        Err(last_error.unwrap_or_else(|| anyhow::anyhow!("LLM API request failed after {} retries", MAX_RETRIES)))
     }
 
     fn default_model(&self) -> &str {
@@ -292,5 +340,19 @@ mod tests {
             "llama-3",
         );
         assert_eq!(p.base_url, "http://localhost:8000/v1");
+    }
+
+    #[test]
+    fn test_retryable_status() {
+        assert!(OpenAiProvider::is_retryable_status(reqwest::StatusCode::TOO_MANY_REQUESTS));
+        assert!(OpenAiProvider::is_retryable_status(reqwest::StatusCode::INTERNAL_SERVER_ERROR));
+        assert!(OpenAiProvider::is_retryable_status(reqwest::StatusCode::BAD_GATEWAY));
+        assert!(OpenAiProvider::is_retryable_status(reqwest::StatusCode::SERVICE_UNAVAILABLE));
+        assert!(OpenAiProvider::is_retryable_status(reqwest::StatusCode::GATEWAY_TIMEOUT));
+
+        // Non-retryable
+        assert!(!OpenAiProvider::is_retryable_status(reqwest::StatusCode::BAD_REQUEST));
+        assert!(!OpenAiProvider::is_retryable_status(reqwest::StatusCode::UNAUTHORIZED));
+        assert!(!OpenAiProvider::is_retryable_status(reqwest::StatusCode::NOT_FOUND));
     }
 }

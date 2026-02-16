@@ -100,6 +100,60 @@ impl Config {
         std::fs::write(&path, serde_json::to_string_pretty(&template)?)?;
         Ok(path)
     }
+
+    /// Validate configuration and return actionable error messages.
+    ///
+    /// Checks that:
+    /// - At least one provider has a real (non-placeholder) API key
+    /// - The default model is not empty
+    /// - Enabled channels have a token configured
+    pub fn validate(&self) -> std::result::Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+
+        // Check providers — must have at least one real key.
+        let placeholder_prefixes = ["YOUR_", "sk-or-v1-YOUR", "sk-YOUR", "sk-ant-YOUR"];
+        let has_real_provider = self.providers.find_active().map_or(false, |(_, entry)| {
+            !placeholder_prefixes.iter().any(|p| entry.api_key.contains(p))
+        });
+        if !has_real_provider {
+            errors.push(
+                "No LLM provider configured with a real API key. \
+                 Edit ~/.crabbybot/config.json and replace the placeholder key."
+                    .into(),
+            );
+        }
+
+        // Check model.
+        if self.agents.defaults.model.is_empty() {
+            errors.push("agents.defaults.model is empty. Specify a model name.".into());
+        }
+
+        // Check channels — enabled channels must have a token.
+        if let Some(ref tg) = self.channels.telegram {
+            if tg.enabled && (tg.token.is_empty() || tg.token.contains("YOUR_")) {
+                errors.push(
+                    "Telegram is enabled but the bot token is missing or a placeholder. \
+                     Set channels.telegram.token in config.json."
+                        .into(),
+                );
+            }
+        }
+        if let Some(ref dc) = self.channels.discord {
+            if dc.enabled && (dc.token.is_empty() || dc.token.contains("YOUR_")) {
+                errors.push(
+                    "Discord is enabled but the bot token is missing or a placeholder. \
+                     Set channels.discord.token in config.json."
+                        .into(),
+                );
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 // ── Provider Configuration ──────────────────────────────────────────
@@ -321,5 +375,34 @@ mod tests {
         let (name, entry) = config.providers.find_active().unwrap();
         assert_eq!(name, "anthropic");
         assert_eq!(entry.api_key, "sk-ant-xxx");
+    }
+
+    #[test]
+    fn test_validate_catches_placeholder_key() {
+        let json = r#"{"providers": {"openrouter": {"apiKey": "sk-or-v1-YOUR_KEY_HERE"}}}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        let errors = config.validate().unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("real API key")));
+    }
+
+    #[test]
+    fn test_validate_passes_with_real_key() {
+        let json = r#"{"providers": {"openai": {"apiKey": "sk-abc123def456"}}}"#;
+        let config: Config = serde_json::from_str(json).unwrap();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_validate_catches_empty_model() {
+        let mut config = Config::default();
+        config.agents.defaults.model = String::new();
+        // Also need a real key so the model error is the one we catch.
+        config.providers.openai = Some(ProviderEntry {
+            api_key: "sk-real-key-123".into(),
+            api_base: None,
+            extra_headers: Default::default(),
+        });
+        let errors = config.validate().unwrap_err();
+        assert!(errors.iter().any(|e| e.contains("model")));
     }
 }
