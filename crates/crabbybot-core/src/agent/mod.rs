@@ -27,7 +27,7 @@ use skills::SkillsLoader;
 
 /// Configuration for the agent loop.
 pub struct AgentConfig {
-    pub model: String,
+    pub model: Option<String>,
     pub max_tokens: u32,
     pub temperature: f32,
     pub max_iterations: u32,
@@ -107,7 +107,7 @@ impl AgentLoop {
                 .chat(
                     &messages,
                     &tool_defs,
-                    Some(&self.config.model),
+                    self.config.model.as_deref(),
                     self.config.max_tokens,
                     self.config.temperature,
                 )

@@ -69,6 +69,7 @@ impl OpenAiProvider {
         api_key: &str,
         api_base: Option<&str>,
         default_model: &str,
+        client: Client,
     ) -> Self {
         let base_url = api_base
             .map(|s| s.to_string())
@@ -85,7 +86,7 @@ impl OpenAiProvider {
         debug!(provider = provider_name, base_url = %base_url, "Initialized LLM provider");
 
         Self {
-            client: Client::new(),
+            client,
             api_key: api_key.to_string(),
             base_url,
             default_model: default_model.to_string(),
@@ -155,13 +156,29 @@ struct UsageResponse {
 }
 
 #[derive(Deserialize)]
-struct ErrorResponse {
+#[serde(untagged)]
+enum ErrorResponse {
+    Single(ErrorBody),
+    Multiple(Vec<ErrorBody>),
+}
+
+#[derive(Deserialize)]
+struct ErrorBody {
     error: ErrorDetail,
 }
 
 #[derive(Deserialize)]
 struct ErrorDetail {
     message: String,
+}
+
+impl ErrorResponse {
+    fn message(&self) -> String {
+        match self {
+            Self::Single(b) => b.error.message.clone(),
+            Self::Multiple(v) => v.first().map(|b| b.error.message.clone()).unwrap_or_else(|| "Unknown error".into()),
+        }
+    }
 }
 
 // ── LlmProvider implementation ──────────────────────────────────────
@@ -237,7 +254,7 @@ impl LlmProvider for OpenAiProvider {
 
             if !status.is_success() {
                 let err_msg = serde_json::from_str::<ErrorResponse>(&body)
-                    .map(|e| e.error.message)
+                    .map(|e| e.message())
                     .unwrap_or_else(|_| body.clone());
 
                 if Self::is_retryable_status(status) {
@@ -324,10 +341,11 @@ mod tests {
 
     #[test]
     fn test_provider_url_lookup() {
-        let p = OpenAiProvider::new("openrouter", "test-key", None, "test-model");
+        let client = Client::new();
+        let p = OpenAiProvider::new("openrouter", "test-key", None, "test-model", client.clone());
         assert_eq!(p.base_url, "https://openrouter.ai/api/v1");
 
-        let p = OpenAiProvider::new("deepseek", "test-key", None, "test-model");
+        let p = OpenAiProvider::new("deepseek", "test-key", None, "test-model", client);
         assert_eq!(p.base_url, "https://api.deepseek.com/v1");
     }
 
@@ -338,6 +356,7 @@ mod tests {
             "dummy",
             Some("http://localhost:8000/v1"),
             "llama-3",
+            Client::new(),
         );
         assert_eq!(p.base_url, "http://localhost:8000/v1");
     }

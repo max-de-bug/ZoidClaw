@@ -11,12 +11,14 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::io::{self, Write};
 use tokio_util::sync::CancellationToken;
+use reqwest;
 
 
 use crabbybot_core::agent::{AgentConfig, AgentLoop};
 use crabbybot_core::config::Config;
 use crabbybot_core::cron::{CronService, Schedule};
 use crabbybot_core::provider::openai::OpenAiProvider;
+use crabbybot_core::provider::LlmProvider;
 use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use crabbybot_core::tools::shell::ExecTool;
@@ -151,18 +153,27 @@ async fn cmd_bot() -> Result<()> {
 
     let workspace = config.workspace_path();
     
-    // Resolve provider
-    let (provider_name, entry) = config
-        .providers
-        .find_active()
-        .ok_or_else(|| anyhow::anyhow!("No LLM provider configured."))?;
+    // Resolve providers
+    let active_providers = config.providers.find_all_active();
+    if active_providers.is_empty() {
+        anyhow::bail!("No LLM provider configured with a real API key. Edit ~/.crabbybot/config.json");
+    }
 
-    let provider = OpenAiProvider::new(
-        provider_name,
-        &entry.api_key,
-        entry.api_base.as_deref(),
-        &config.agents.defaults.model,
-    );
+    let client = reqwest::Client::new();
+    let mut inner_providers = Vec::new();
+    for (name, entry) in active_providers {
+        let model = entry.model.as_deref().unwrap_or(&config.agents.defaults.model);
+        let p = OpenAiProvider::new(
+            name,
+            &entry.api_key,
+            entry.api_base.as_deref(),
+            model,
+            client.clone(),
+        );
+        inner_providers.push((name.to_string(), Box::new(p) as Box<dyn LlmProvider>));
+    }
+
+    let provider = crabbybot_core::provider::FallbackProvider::new(inner_providers);
 
     // Set up tools
     let restrict = config.tools.restrict_to_workspace;
@@ -182,7 +193,7 @@ async fn cmd_bot() -> Result<()> {
     }
 
     let agent_config = AgentConfig {
-        model: config.agents.defaults.model.clone(),
+        model: None,
         max_tokens: config.agents.defaults.max_tokens,
         temperature: config.agents.defaults.temperature,
         max_iterations: config.agents.defaults.max_tool_iterations,
@@ -301,24 +312,31 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         anyhow::bail!("Fix the above {} error(s) in ~/.crabbybot/config.json", errors.len());
     }
 
-    // Resolve provider
-    let (provider_name, entry) = config
-        .providers
-        .find_active()
-        .ok_or_else(|| anyhow::anyhow!(
-            "No LLM provider configured. Run `crabbybot onboard` first, then edit ~/.crabbybot/config.json"
-        ))?;
-
     let model = model_override
         .unwrap_or(&config.agents.defaults.model)
         .to_string();
 
-    let provider = OpenAiProvider::new(
-        provider_name,
-        &entry.api_key,
-        entry.api_base.as_deref(),
-        &model,
-    );
+    // Resolve providers
+    let active_providers = config.providers.find_all_active();
+    if active_providers.is_empty() {
+        anyhow::bail!("No LLM provider configured. Run `crabbybot onboard` first, then edit ~/.crabbybot/config.json");
+    }
+
+    let client = reqwest::Client::new();
+    let mut inner_providers = Vec::new();
+    for (name, entry) in active_providers {
+        let p_model = entry.model.as_deref().unwrap_or(&model);
+        let p = OpenAiProvider::new(
+            name,
+            &entry.api_key,
+            entry.api_base.as_deref(),
+            p_model,
+            client.clone(),
+        );
+        inner_providers.push((name.to_string(), Box::new(p) as Box<dyn LlmProvider>));
+    }
+
+    let provider = crabbybot_core::provider::FallbackProvider::new(inner_providers);
 
     // Set up tools
     let workspace = config.workspace_path();
@@ -344,7 +362,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
     }
 
     let agent_config = AgentConfig {
-        model: model.clone(),
+        model: model_override.map(|s| s.to_string()),
         max_tokens: config.agents.defaults.max_tokens,
         temperature: config.agents.defaults.temperature,
         max_iterations: config.agents.defaults.max_tool_iterations,
@@ -356,7 +374,10 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
     // Print header
     println!();
     println!("  🦀 crabbybot v{}", env!("CARGO_PKG_VERSION"));
-    println!("  Provider: {} | Model: {}", provider_name, model);
+    println!("  Providers: {} | Model: {}", 
+        config.providers.find_all_active().iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", "), 
+        model
+    );
     println!("  Session: {} | Workspace: {}", session_key, workspace.display());
     println!("  {} tools loaded", 6 + if config.tools.web_search.api_key.is_empty() { 0 } else { 1 });
     println!();

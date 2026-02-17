@@ -31,16 +31,30 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Load configuration from the default path (`~/.crabbybot/config.json`).
+    /// Load configuration.
+    ///
+    /// Priority:
+    /// 1. local `config.json` in current directory
+    /// 2. `~/.ferrobot/config.json`
+    /// 3. `~/.crabbybot/config.json`
     pub fn load() -> anyhow::Result<Self> {
-        let path = Self::default_path();
-        if path.exists() {
-            let content = std::fs::read_to_string(&path)?;
-            let config: Config = serde_json::from_str(&content)?;
-            Ok(config)
-        } else {
-            Ok(Config::default())
+        let paths = vec![
+            PathBuf::from("config.json"),
+            Self::ferrobot_path(),
+            Self::default_path(),
+        ];
+
+        for path in paths {
+            if path.exists() {
+                tracing::debug!("Loading config from: {}", path.display());
+                let content = std::fs::read_to_string(&path)?;
+                let config: Config = serde_json::from_str(&content)?;
+                return Ok(config);
+            }
         }
+
+        // No config found, return default with placeholders
+        Ok(Config::default())
     }
 
     /// Load configuration from a specific path.
@@ -50,7 +64,15 @@ impl Config {
         Ok(config)
     }
 
-    /// Get the default config file path.
+    /// Get the path to `~/.ferrobot/config.json`.
+    pub fn ferrobot_path() -> PathBuf {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".ferrobot")
+            .join("config.json")
+    }
+
+    /// Get the default config file path (`~/.crabbybot/config.json`).
     pub fn default_path() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -111,14 +133,10 @@ impl Config {
         let mut errors = Vec::new();
 
         // Check providers — must have at least one real key.
-        let placeholder_prefixes = ["YOUR_", "sk-or-v1-YOUR", "sk-YOUR", "sk-ant-YOUR"];
-        let has_real_provider = self.providers.find_active().map_or(false, |(_, entry)| {
-            !placeholder_prefixes.iter().any(|p| entry.api_key.contains(p))
-        });
-        if !has_real_provider {
+        if self.providers.find_active().is_none() {
             errors.push(
                 "No LLM provider configured with a real API key. \
-                 Edit ~/.crabbybot/config.json and replace the placeholder key."
+                 Edit config.json and replace the placeholder key."
                     .into(),
             );
         }
@@ -163,6 +181,7 @@ impl Config {
 pub struct ProviderEntry {
     pub api_key: String,
     pub api_base: Option<String>,
+    pub model: Option<String>,
     #[serde(default)]
     pub extra_headers: HashMap<String, String>,
 }
@@ -180,9 +199,16 @@ pub struct ProvidersConfig {
 }
 
 impl ProvidersConfig {
-    /// Find the first configured provider (has a non-empty API key).
+    /// Find the first configured provider (has a non-empty, non-placeholder API key).
     pub fn find_active(&self) -> Option<(&str, &ProviderEntry)> {
-        let candidates: Vec<(&str, &Option<ProviderEntry>)> = vec![
+        self.find_all_active().into_iter().next()
+    }
+
+    /// Find all configured providers that have a real API key.
+    pub fn find_all_active(&self) -> Vec<(&'static str, &ProviderEntry)> {
+        let placeholder_prefixes = ["YOUR_", "sk-or-v1-YOUR", "sk-YOUR", "sk-ant-YOUR"];
+        
+        let candidates: Vec<(&'static str, &Option<ProviderEntry>)> = vec![
             ("openrouter", &self.openrouter),
             ("anthropic", &self.anthropic),
             ("openai", &self.openai),
@@ -192,14 +218,15 @@ impl ProvidersConfig {
             ("vllm", &self.vllm),
         ];
 
+        let mut active = Vec::new();
         for (name, entry) in candidates {
             if let Some(e) = entry {
-                if !e.api_key.is_empty() {
-                    return Some((name, e));
+                if !e.api_key.is_empty() && !placeholder_prefixes.iter().any(|p| e.api_key.contains(p)) {
+                    active.push((name, e));
                 }
             }
         }
-        None
+        active
     }
 }
 

@@ -60,11 +60,17 @@ impl AgentBridge {
                                 Err(e) => {
                                     error!("Error processing message through agent: {}", e);
 
+                                    let error_msg = if e.to_string().contains("429") || e.to_string().contains("quota") || e.to_string().contains("exhausted") {
+                                        "⚠️ **LLM Quota Exceeded**\n\nAll configured providers (OpenAI, Gemini) have exhausted their free-tier quotas or hit rate limits. \n\n**Suggestions:**\n1. Wait a few minutes for rate limits to reset.\n2. Add a **Groq** API key to your `config.json` for a generous free tier.\n3. Check your billing details for OpenAI/Gemini.".into()
+                                    } else {
+                                        format!("⚠️ **Error**: {}", e)
+                                    };
+
                                     let bus = self.bus.lock().await;
                                     bus.publish_outbound(crate::bus::events::OutboundMessage {
                                         channel: msg.channel,
                                         chat_id: msg.chat_id,
-                                        content: format!("⚠️ Error: {}", e),
+                                        content: error_msg,
                                     }).await;
                                 }
                             }
