@@ -268,6 +268,7 @@ pub struct ToolsConfig {
     pub restrict_to_workspace: bool,
     pub web_search: WebSearchConfig,
     pub exec: ExecConfig,
+    pub solana_rpc_url: String,
 }
 
 impl Default for ToolsConfig {
@@ -276,6 +277,7 @@ impl Default for ToolsConfig {
             restrict_to_workspace: false,
             web_search: WebSearchConfig::default(),
             exec: ExecConfig::default(),
+            solana_rpc_url: "https://api.mainnet-beta.solana.com".into(),
         }
     }
 }
@@ -427,6 +429,7 @@ mod tests {
         config.providers.openai = Some(ProviderEntry {
             api_key: "sk-real-key-123".into(),
             api_base: None,
+            model: None,
             extra_headers: Default::default(),
         });
         let errors = config.validate().unwrap_err();

@@ -23,12 +23,15 @@
 //!
 //! // Create a provider
 //! let (name, entry) = config.providers.find_active().unwrap();
-//! let provider = OpenAiProvider::new(name, &entry.api_key, None, &config.agents.defaults.model);
+//! let client = reqwest::Client::new();
+//! let provider = OpenAiProvider::new(
+//!     name, &entry.api_key, None, &config.agents.defaults.model, client,
+//! );
 //!
 //! // Set up tools and agent
 //! let tools = ToolRegistry::new();
 //! let agent_config = AgentConfig {
-//!     model: config.agents.defaults.model.clone(),
+//!     model: Some(config.agents.defaults.model.clone()),
 //!     max_tokens: config.agents.defaults.max_tokens,
 //!     temperature: config.agents.defaults.temperature,
 //!     max_iterations: config.agents.defaults.max_tool_iterations,

@@ -20,3 +20,7 @@ Thumbs.db
 # Temporary files
 *.log
 tmp/
+*.txt
+build_output.txt
+test_output.txt
+test_output2.txt

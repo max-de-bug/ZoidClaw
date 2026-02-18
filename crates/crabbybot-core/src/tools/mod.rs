@@ -5,7 +5,9 @@
 //! tools and dispatches tool calls by name.
 
 pub mod filesystem;
+pub mod schedule;
 pub mod shell;
+pub mod solana;
 pub mod web;
 
 use async_trait::async_trait;

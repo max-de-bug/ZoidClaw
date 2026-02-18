@@ -79,6 +79,9 @@ impl AgentLoop {
         let session = self.sessions.get_or_create(session_key);
         let history = session.get_history(50);
 
+        // Add user message to session immediately
+        session.add_message("user", content);
+
         // Build initial messages
         let ctx = ContextBuilder::new(&self.config.workspace, &self.memory, &self.skills);
         let mut messages = ctx.build_messages(&history, content, &[]);
@@ -113,25 +116,7 @@ impl AgentLoop {
                 )
                 .await?;
 
-            // If no tool calls → we have our final response
-            if response.tool_calls.is_empty() {
-                let reply = response.content.unwrap_or_default();
-
-                // Save to session
-                let session = self.sessions.get_or_create(session_key);
-                session.add_message("user", content);
-                session.add_message("assistant", &reply);
-                self.sessions.save(session_key)?;
-
-                info!(
-                    tokens = response.usage.total_tokens,
-                    iterations,
-                    "Response complete"
-                );
-                return Ok(reply);
-            }
-
-            // We have tool calls — add assistant message with tool calls, then execute
+            // Prepare assistant message
             let tool_call_messages: Vec<ToolCallMessage> = response
                 .tool_calls
                 .iter()
@@ -145,11 +130,36 @@ impl AgentLoop {
                 })
                 .collect();
 
-            // Add assistant message with tool calls
-            messages.push(ChatMessage::assistant_with_tool_calls(
-                response.content.as_deref(),
-                tool_call_messages,
-            ));
+            let assistant_msg = if tool_call_messages.is_empty() {
+                ChatMessage::assistant(response.content.as_deref().unwrap_or_default())
+            } else {
+                ChatMessage::assistant_with_tool_calls(
+                    response.content.as_deref(),
+                    tool_call_messages,
+                )
+            };
+
+            // Add assistant message to context and session
+            messages.push(assistant_msg.clone());
+            {
+                let session = self.sessions.get_or_create(session_key);
+                session.add_chat_message(&assistant_msg);
+            }
+
+            // If no tool calls → we have our final response
+            if response.tool_calls.is_empty() {
+                let reply = response.content.unwrap_or_default();
+
+                // Save session
+                self.sessions.save(session_key)?;
+
+                info!(
+                    tokens = response.usage.total_tokens,
+                    iterations,
+                    "Response complete"
+                );
+                return Ok(reply);
+            }
 
             // Execute each tool call and add results
             for tc in &response.tool_calls {
@@ -164,18 +174,24 @@ impl AgentLoop {
                     "Tool execution complete"
                 );
 
-                messages.push(ChatMessage::tool_result(&tc.id, &tc.name, &result));
+                let tool_msg = ChatMessage::tool_result(&tc.id, &tc.name, &result);
+                messages.push(tool_msg.clone());
+
+                // Add tool result to session
+                let session = self.sessions.get_or_create(session_key);
+                session.add_chat_message(&tool_msg);
             }
         }
 
         // Fallback if we hit max iterations
-        let session = self.sessions.get_or_create(session_key);
-        session.add_message("user", content);
-        session.add_message(
-            "assistant",
-            "I've reached the maximum number of tool iterations. Here's what I've done so far.",
-        );
-        self.sessions.save(session_key)?;
+        {
+            let session = self.sessions.get_or_create(session_key);
+            session.add_message(
+                "assistant",
+                "I've reached the maximum number of tool iterations. Please review the actions taken above.",
+            );
+            self.sessions.save(session_key)?;
+        }
 
         Ok(
             "I've reached the maximum number of tool iterations. Please review the actions taken above."

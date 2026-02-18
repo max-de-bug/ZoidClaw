@@ -33,6 +33,16 @@ pub struct CronJob {
     pub last_run: Option<String>,
     #[serde(default)]
     pub next_run_ms: Option<i64>,
+    /// Channel to route responses to (e.g., "telegram", "discord").
+    #[serde(default = "default_channel")]
+    pub channel: String,
+    /// Chat ID to route responses to.
+    #[serde(default)]
+    pub chat_id: String,
+}
+
+fn default_channel() -> String {
+    "cli".to_string()
 }
 
 /// Persistent store for cron jobs.
@@ -60,6 +70,8 @@ impl CronService {
         name: &str,
         schedule: Schedule,
         message: &str,
+        channel: &str,
+        chat_id: &str,
     ) -> anyhow::Result<String> {
         let id = format!("job_{}", uuid_simple());
 
@@ -79,9 +91,11 @@ impl CronService {
             created_at: Local::now().to_rfc3339(),
             last_run: None,
             next_run_ms: None,
+            channel: channel.to_string(),
+            chat_id: chat_id.to_string(),
         };
 
-        info!(id = %id, name = name, "Added cron job");
+        info!(id = %id, name = name, channel = channel, "Added cron job");
         self.store.jobs.push(job);
         self.save_store()?;
 
@@ -185,28 +199,24 @@ fn compute_next_run(schedule: &Schedule, now_ms: i64) -> i64 {
         Schedule::Cron { expression } => {
             use std::str::FromStr;
             match cron::Schedule::from_str(expression) {
-                Ok(sched) => {
-                    let _now = Local::now();
-                    sched
-                        .upcoming(Local)
-                        .next()
-                        .map(|dt| dt.timestamp_millis())
-                        .unwrap_or(now_ms + 60_000)
-                }
+                Ok(sched) => sched
+                    .upcoming(Local)
+                    .next()
+                    .map(|dt| dt.timestamp_millis())
+                    .unwrap_or(now_ms + 60_000),
                 Err(_) => now_ms + 60_000,
             }
         }
     }
 }
 
-/// Generate a simple unique ID (no uuid crate dependency).
+/// Generate a unique ID using nanoseconds + a monotonic counter.
 fn uuid_simple() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let ts = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    format!("{:x}", ts)
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let count = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let now = chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0);
+    format!("{:x}-{:04x}", now, count % 0xFFFF)
 }
 
 #[cfg(test)]
@@ -224,6 +234,8 @@ mod tests {
                 "test-job",
                 Schedule::Interval { seconds: 3600 },
                 "Check the weather",
+                "cli",
+                "test",
             )
             .unwrap();
 

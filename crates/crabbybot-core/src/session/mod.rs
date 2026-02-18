@@ -22,8 +22,14 @@ pub struct Session {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMessage {
     pub role: String,
-    pub content: String,
+    pub content: Option<String>,
     pub timestamp: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_calls: Option<Vec<crate::provider::types::ToolCallMessage>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
 }
 
 impl Session {
@@ -41,8 +47,24 @@ impl Session {
     pub fn add_message(&mut self, role: &str, content: &str) {
         self.messages.push(SessionMessage {
             role: role.to_string(),
-            content: content.to_string(),
+            content: Some(content.to_string()),
             timestamp: chrono::Local::now().to_rfc3339(),
+            tool_calls: None,
+            tool_call_id: None,
+            name: None,
+        });
+        self.updated_at = chrono::Local::now().to_rfc3339();
+    }
+
+    /// Add a full chat message to the session.
+    pub fn add_chat_message(&mut self, msg: &crate::provider::types::ChatMessage) {
+        self.messages.push(SessionMessage {
+            role: msg.role.clone(),
+            content: msg.content_as_str().map(|s| s.to_string()),
+            timestamp: chrono::Local::now().to_rfc3339(),
+            tool_calls: msg.tool_calls.clone(),
+            tool_call_id: msg.tool_call_id.clone(),
+            name: msg.name.clone(),
         });
         self.updated_at = chrono::Local::now().to_rfc3339();
     }
@@ -59,10 +81,13 @@ impl Session {
             .iter()
             .map(|m| crate::provider::types::ChatMessage {
                 role: m.role.clone(),
-                content: Some(serde_json::Value::String(m.content.clone())),
-                tool_calls: None,
-                tool_call_id: None,
-                name: None,
+                content: m
+                    .content
+                    .as_ref()
+                    .map(|s| serde_json::Value::String(s.clone())),
+                tool_calls: m.tool_calls.clone(),
+                tool_call_id: m.tool_call_id.clone(),
+                name: m.name.clone(),
             })
             .collect()
     }
@@ -235,7 +260,7 @@ mod tests {
 
         assert_eq!(session.messages.len(), 2);
         assert_eq!(session.messages[0].role, "user");
-        assert_eq!(session.messages[1].content, "Hi there!");
+        assert_eq!(session.messages[1].content.as_deref(), Some("Hi there!"));
     }
 
     #[test]

@@ -7,9 +7,13 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 use crate::bus::MessageBus;
 use crate::bus::events::InboundMessage;
+use crate::gateway::utils::chunk_message;
+
+/// Maximum Discord message length.
+const DISCORD_MAX_LEN: usize = 2000;
 
 struct Handler {
-    bus: Arc<tokio::sync::Mutex<MessageBus>>,
+    bus: Arc<MessageBus>,
     allow_from: Vec<String>,
 }
 
@@ -41,8 +45,7 @@ impl EventHandler for Handler {
             is_system: false,
         };
 
-        let bus_locked = self.bus.lock().await;
-        if let Err(e) = bus_locked.inbound_sender().send(inbound).await {
+        if let Err(e) = self.bus.inbound_sender().send(inbound).await {
             error!("Failed to send inbound message to bus: {}", e);
         }
     }
@@ -54,14 +57,14 @@ impl EventHandler for Handler {
 
 pub struct DiscordTransport {
     token: String,
-    bus: Arc<tokio::sync::Mutex<MessageBus>>,
+    bus: Arc<MessageBus>,
     allow_from: Vec<String>,
 }
 
 impl DiscordTransport {
     pub fn new(
         token: String,
-        bus: Arc<tokio::sync::Mutex<MessageBus>>,
+        bus: Arc<MessageBus>,
         allow_from: Vec<String>,
     ) -> Self {
         Self { token, bus, allow_from }
@@ -78,14 +81,12 @@ impl DiscordTransport {
         // Subscribe to outbound messages
         {
             let http = Arc::clone(&client.http);
-            let bus_locked = self.bus.lock().await;
-            bus_locked.subscribe_outbound("discord", move |msg| {
+            self.bus.subscribe_outbound("discord", move |msg| {
                 let http = Arc::clone(&http);
                 async move {
                     if let Ok(channel_id) = msg.chat_id.parse::<u64>() {
                         use serenity::model::id::ChannelId;
-                        // Discord has a 2000-char limit
-                        let chunks = chunk_discord_message(&msg.content, 2000);
+                        let chunks = chunk_message(&msg.content, DISCORD_MAX_LEN);
                         for chunk in chunks {
                             if let Err(e) = ChannelId::new(channel_id).say(&http, chunk).await {
                                 error!("Failed to send Discord message: {}", e);
@@ -101,30 +102,4 @@ impl DiscordTransport {
 
         Ok(())
     }
-}
-
-/// Split a message into chunks of at most `max_len` characters.
-fn chunk_discord_message(text: &str, max_len: usize) -> Vec<String> {
-    if text.len() <= max_len {
-        return vec![text.to_owned()];
-    }
-
-    let mut chunks = Vec::new();
-    let mut remaining = text;
-
-    while !remaining.is_empty() {
-        if remaining.len() <= max_len {
-            chunks.push(remaining.to_owned());
-            break;
-        }
-
-        let slice = &remaining[..max_len];
-        let break_at = slice.rfind('\n').unwrap_or(max_len);
-        let break_at = if break_at == 0 { max_len } else { break_at };
-
-        chunks.push(remaining[..break_at].to_owned());
-        remaining = &remaining[break_at..].trim_start_matches('\n');
-    }
-
-    chunks
 }
