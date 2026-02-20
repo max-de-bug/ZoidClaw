@@ -1,14 +1,22 @@
-# 🦀 Crabbybot
-
-<div align="center">
-  <img src="assets/images/crabbybot_logo.png" alt="Crabbybot Logo" width="200">
-</div>
+<table border="0" width="100%">
+  <tr>
+    <td width="200" valign="top">
+      <img src="assets/images/crabbybot_logo.png" alt="Crabbybot Logo" width="200">
+    </td>
+    <td valign="top">
+      <h1>Crabbybot 🦀</h1>
+      <a href="https://git.io/typing-svg">
+        <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=24&pause=1000&color=F74C00&width=435&lines=The+high-performance+Rust+AI+bridge;Asynchronous.+Concurrent.+Blazing+fast.;CLI%2C+Telegram%2C+and+Discord+integration;Zero+runtime+dependencies.+Pure+performance." alt="Typing SVG" />
+      </a>
+    </td>
+  </tr>
+</table>
 
 [![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)](https://github.com/max-de-bug/crabbybot)
 
-**Crabbybot** 🦀 is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot), it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
+**Crabbybot** 🦀 is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot) and OpenClaw, it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
 
 ## 🚀 Key Features
 
@@ -144,4 +152,4 @@ crabbybot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summ
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-*Built with 🦀 by the Crabbybot Team.*
+*Built with 🦀 by the Connor.*

@@ -33,13 +33,27 @@ impl TelegramTransport {
         {
             let bot_out = bot.clone();
             self.bus.subscribe_outbound("telegram", move |msg| {
+                use crate::bus::events::OutboundMessage;
                 let bot_out = bot_out.clone();
                 async move {
-                    if let Ok(chat_id) = msg.chat_id.parse::<i64>() {
-                        let chunks = chunk_message(&msg.content, TELEGRAM_MAX_LEN);
-                        for chunk in chunks {
-                            if let Err(e) = bot_out.send_message(ChatId(chat_id), chunk).await {
-                                error!("Failed to send Telegram message: {}", e);
+                    match msg {
+                        OutboundMessage::Reply { chat_id, content, .. }
+                        | OutboundMessage::Progress { chat_id, content, .. } => {
+                            if let Ok(id) = chat_id.parse::<i64>() {
+                                let chunks = chunk_message(&content, TELEGRAM_MAX_LEN);
+                                for chunk in chunks {
+                                    if let Err(e) = bot_out.send_message(ChatId(id), chunk).await {
+                                        error!("Failed to send Telegram message: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                        OutboundMessage::Typing { chat_id, .. } => {
+                            if let Ok(id) = chat_id.parse::<i64>() {
+                                use teloxide::types::ChatAction;
+                                let _ = bot_out
+                                    .send_chat_action(ChatId(id), ChatAction::Typing)
+                                    .await;
                             }
                         }
                     }

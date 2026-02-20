@@ -76,6 +76,9 @@ impl MessageBus {
 
     /// Subscribe to outbound messages for a specific channel.
     ///
+    /// The callback receives *all* `OutboundMessage` variants for the channel;
+    /// implementations should match on the variant and ignore unknowns.
+    ///
     /// This takes `&self` (not `&mut self`) — safe to call from any task
     /// because the subscriber map uses an internal `RwLock`.
     pub async fn subscribe_outbound<F, Fut>(&self, channel: &str, callback: F)
@@ -93,6 +96,10 @@ impl MessageBus {
 
 /// Dispatch outbound messages to subscribers.
 ///
+/// Routes each `OutboundMessage` to all callbacks registered for
+/// `msg.channel()`. Callbacks receive the full enum variant so they can
+/// handle typing indicators, progress updates, and final replies differently.
+///
 /// This is a **free function** — it does not hold the bus mutex, only the
 /// shared subscriber map. Run it as a background task via `tokio::spawn`.
 pub async fn dispatch_outbound(
@@ -100,18 +107,19 @@ pub async fn dispatch_outbound(
     mut outbound_rx: mpsc::Receiver<OutboundMessage>,
 ) {
     while let Some(msg) = outbound_rx.recv().await {
+        let channel = msg.channel().to_owned();
         let subs = subscribers.read().await;
-        if let Some(callbacks) = subs.get(&msg.channel) {
+        if let Some(callbacks) = subs.get(&channel) {
             for callback in callbacks {
                 let fut = callback(msg.clone());
                 if let Err(e) =
                     tokio::time::timeout(std::time::Duration::from_secs(10), fut).await
                 {
-                    error!(channel = msg.channel, "Outbound dispatch timed out: {}", e);
+                    error!(channel = %channel, "Outbound dispatch timed out: {}", e);
                 }
             }
         } else {
-            debug!(channel = msg.channel, "No subscribers for outbound message");
+            debug!(channel = %channel, "No subscribers for outbound message");
         }
     }
 }
@@ -136,14 +144,16 @@ mod tests {
     async fn test_outbound_dispatch_to_subscriber() {
         let (bus, receivers) = MessageBus::new(16);
 
-        // Register a subscriber that captures messages
+        // Register a subscriber that captures reply messages
         let received = Arc::new(RwLock::new(Vec::<String>::new()));
         let received_clone = Arc::clone(&received);
 
         bus.subscribe_outbound("test_channel", move |msg| {
             let captured = Arc::clone(&received_clone);
             async move {
-                captured.write().await.push(msg.content);
+                if let OutboundMessage::Reply { content, .. } = msg {
+                    captured.write().await.push(content);
+                }
             }
         }).await;
 
@@ -151,12 +161,12 @@ mod tests {
         let subs = bus.subscribers();
         let dispatch_handle = tokio::spawn(dispatch_outbound(subs, receivers.outbound_rx));
 
-        // Publish a message
-        bus.publish_outbound(OutboundMessage {
-            channel: "test_channel".into(),
-            chat_id: "chat1".into(),
-            content: "hello subscriber".into(),
-        }).await;
+        // Publish a Reply message
+        bus.publish_outbound(OutboundMessage::reply(
+            "test_channel",
+            "chat1",
+            "hello subscriber",
+        )).await;
 
         // Give dispatch a moment to process
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
@@ -192,11 +202,11 @@ mod tests {
             }
         }).await;
 
-        bus.publish_outbound(OutboundMessage {
-            channel: "late_channel".into(),
-            chat_id: "c1".into(),
-            content: "late message".into(),
-        }).await;
+        bus.publish_outbound(OutboundMessage::reply(
+            "late_channel",
+            "c1",
+            "late message",
+        )).await;
 
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 

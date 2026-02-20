@@ -20,14 +20,76 @@ pub struct InboundMessage {
 }
 
 /// An outbound message from the agent to a chat channel.
+///
+/// Channels should handle all variants:
+/// - `Reply`    — final text response, always rendered.
+/// - `Typing`   — show a "typing…" indicator (best-effort, ignore if unsupported).
+/// - `Progress` — intermediate status line shown while tools are executing.
 #[derive(Debug, Clone)]
-pub struct OutboundMessage {
-    /// Destination channel identifier.
-    pub channel: String,
-    /// Destination chat/conversation identifier.
-    pub chat_id: String,
-    /// Response text content.
-    pub content: String,
+pub enum OutboundMessage {
+    /// Final text reply from the agent.
+    Reply {
+        channel: String,
+        chat_id: String,
+        content: String,
+    },
+    /// Ask the channel to display a "typing…" indicator.
+    Typing {
+        channel: String,
+        chat_id: String,
+    },
+    /// Intermediate progress update (e.g., "Running tool: read_file…").
+    Progress {
+        channel: String,
+        chat_id: String,
+        content: String,
+    },
+}
+
+impl OutboundMessage {
+    /// Convenience: create a `Reply` message.
+    pub fn reply(channel: impl Into<String>, chat_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self::Reply {
+            channel: channel.into(),
+            chat_id: chat_id.into(),
+            content: content.into(),
+        }
+    }
+
+    /// Convenience: create a `Typing` message.
+    pub fn typing(channel: impl Into<String>, chat_id: impl Into<String>) -> Self {
+        Self::Typing {
+            channel: channel.into(),
+            chat_id: chat_id.into(),
+        }
+    }
+
+    /// Convenience: create a `Progress` message.
+    pub fn progress(channel: impl Into<String>, chat_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self::Progress {
+            channel: channel.into(),
+            chat_id: chat_id.into(),
+            content: content.into(),
+        }
+    }
+
+    /// Extract the channel name regardless of variant.
+    pub fn channel(&self) -> &str {
+        match self {
+            Self::Reply { channel, .. } => channel,
+            Self::Typing { channel, .. } => channel,
+            Self::Progress { channel, .. } => channel,
+        }
+    }
+
+    /// Extract the chat_id regardless of variant.
+    pub fn chat_id(&self) -> &str {
+        match self {
+            Self::Reply { chat_id, .. } => chat_id,
+            Self::Typing { chat_id, .. } => chat_id,
+            Self::Progress { chat_id, .. } => chat_id,
+        }
+    }
 }
 
 impl InboundMessage {
@@ -41,5 +103,31 @@ impl InboundMessage {
             media: Vec::new(),
             is_system: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reply_variant() {
+        let msg = OutboundMessage::reply("telegram", "chat123", "Hello!");
+        assert_eq!(msg.channel(), "telegram");
+        assert_eq!(msg.chat_id(), "chat123");
+        assert!(matches!(msg, OutboundMessage::Reply { .. }));
+    }
+
+    #[test]
+    fn test_typing_variant() {
+        let msg = OutboundMessage::typing("telegram", "chat123");
+        assert_eq!(msg.channel(), "telegram");
+        assert!(matches!(msg, OutboundMessage::Typing { .. }));
+    }
+
+    #[test]
+    fn test_progress_variant() {
+        let msg = OutboundMessage::progress("cli", "direct", "Running tool: read_file…");
+        assert!(matches!(msg, OutboundMessage::Progress { .. }));
     }
 }

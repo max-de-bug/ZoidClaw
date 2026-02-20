@@ -92,6 +92,59 @@ impl Session {
             .collect()
     }
 
+    /// Get message history trimmed to fit within an estimated token budget.
+    ///
+    /// Uses the heuristic `chars / 4 ≈ tokens`. Walks from the *tail* of
+    /// the history and includes messages until the budget would be exceeded.
+    /// This prevents silent context-window overflow on long conversations.
+    ///
+    /// At minimum one message is always returned (the most recent) so the
+    /// agent always has something to reason about.
+    pub fn get_history_within_budget(
+        &self,
+        max_tokens: usize,
+    ) -> Vec<crate::provider::types::ChatMessage> {
+        if self.messages.is_empty() {
+            return vec![];
+        }
+
+        let mut budget = max_tokens;
+        // Walk backwards from the end of history
+        let mut start = self.messages.len();
+        for msg in self.messages.iter().rev() {
+            let char_count = msg.content.as_deref().map(|s| s.len()).unwrap_or(0);
+            let estimated_tokens = (char_count / 4).max(1); // at least 1 token per message
+
+            if start < self.messages.len() && estimated_tokens > budget {
+                // Budget would exceed — stop here (but we already included one)
+                break;
+            }
+
+            start = start.saturating_sub(1);
+
+            if estimated_tokens >= budget {
+                // This message alone fills the budget; include it and stop.
+                budget = 0;
+                break;
+            }
+            budget = budget.saturating_sub(estimated_tokens);
+        }
+
+        self.messages[start..]
+            .iter()
+            .map(|m| crate::provider::types::ChatMessage {
+                role: m.role.clone(),
+                content: m
+                    .content
+                    .as_ref()
+                    .map(|s| serde_json::Value::String(s.clone())),
+                tool_calls: m.tool_calls.clone(),
+                tool_call_id: m.tool_call_id.clone(),
+                name: m.name.clone(),
+            })
+            .collect()
+    }
+
     /// Clear all messages.
     pub fn clear(&mut self) {
         self.messages.clear();

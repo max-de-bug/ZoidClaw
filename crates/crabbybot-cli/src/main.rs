@@ -240,6 +240,7 @@ fn setup_agent(
         temperature: config.agents.defaults.temperature,
         max_iterations: config.agents.defaults.max_tool_iterations,
         workspace: workspace.clone(),
+        max_context_tokens: 30_000,
     };
 
     let agent = AgentLoop::new(Box::new(provider), tools, agent_config);
@@ -469,9 +470,9 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
             _ => {}
         }
 
-        // Process message
+        // Process message — pass None because CLI doesn't need a bus for typing events
         print!("\n");
-        match agent.process(input, session_key).await {
+        match agent.process(input, session_key, None).await {
             Ok(response) => {
                 println!("  \x1b[32m{}\x1b[0m\n", response);
             }

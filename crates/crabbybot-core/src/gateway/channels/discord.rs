@@ -82,16 +82,24 @@ impl DiscordTransport {
         {
             let http = Arc::clone(&client.http);
             self.bus.subscribe_outbound("discord", move |msg| {
+                use crate::bus::events::OutboundMessage;
                 let http = Arc::clone(&http);
                 async move {
-                    if let Ok(channel_id) = msg.chat_id.parse::<u64>() {
-                        use serenity::model::id::ChannelId;
-                        let chunks = chunk_message(&msg.content, DISCORD_MAX_LEN);
-                        for chunk in chunks {
-                            if let Err(e) = ChannelId::new(channel_id).say(&http, chunk).await {
-                                error!("Failed to send Discord message: {}", e);
+                    match msg {
+                        OutboundMessage::Reply { chat_id, content, .. }
+                        | OutboundMessage::Progress { chat_id, content, .. } => {
+                            if let Ok(channel_id) = chat_id.parse::<u64>() {
+                                use serenity::model::id::ChannelId;
+                                let chunks = chunk_message(&content, DISCORD_MAX_LEN);
+                                for chunk in chunks {
+                                    if let Err(e) = ChannelId::new(channel_id).say(&http, chunk).await {
+                                        error!("Failed to send Discord message: {}", e);
+                                    }
+                                }
                             }
                         }
+                        // Discord doesn't expose a simple typing indicator via this API path
+                        OutboundMessage::Typing { .. } => {}
                     }
                 }
             }).await;
