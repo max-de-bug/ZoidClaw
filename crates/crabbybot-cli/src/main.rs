@@ -258,7 +258,17 @@ async fn cmd_bot() -> Result<()> {
     // Shared CronService for both the LLM tools and the cron ticker.
     let cron = Arc::new(tokio::sync::Mutex::new(CronService::new(&workspace)));
 
-    let (agent, _workspace) = setup_agent(&config, None, Some(Arc::clone(&cron)), "telegram", "")?;
+    // Derive default chat_id for cron jobs from the first allowed Telegram user.
+    // In Telegram private chats, chat_id == user_id.
+    let default_chat_id = config
+        .channels
+        .telegram
+        .as_ref()
+        .and_then(|t| t.allow_from.first())
+        .cloned()
+        .unwrap_or_default();
+
+    let (agent, _workspace) = setup_agent(&config, None, Some(Arc::clone(&cron)), "telegram", &default_chat_id)?;
 
     let (bus, receivers) = crabbybot_core::bus::MessageBus::new(100);
     let bus_arc = Arc::new(bus);
