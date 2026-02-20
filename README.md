@@ -1,20 +1,22 @@
-<table border="0" width="100%">
-  <tr>
-    <td width="200" valign="top">
-      <img src="assets/images/crabbybot_logo.png" alt="Crabbybot Logo" width="200">
-    </td>
-    <td valign="top">
-      <h1>Crabbybot 🦀</h1>
-      <a href="https://git.io/typing-svg">
-        <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=24&pause=1000&color=F74C00&width=435&lines=The+high-performance+Rust+AI+bridge;Asynchronous.+Concurrent.+Blazing+fast.;CLI%2C+Telegram%2C+and+Discord+integration;Zero+runtime+dependencies.+Pure+performance." alt="Typing SVG" />
-      </a>
-    </td>
-  </tr>
-</table>
-
-[![Rust](https://img.shields.io/badge/rust-stable-brightgreen.svg)](https://www.rust-lang.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey)](https://github.com/max-de-bug/crabbybot)
+<div>
+  <table>
+    <tr>
+      <td valign="top" width="220">
+        <img src="assets/images/crabbybot_logo.png" alt="Crabbybot Logo" width="200">
+      </td>
+      <td valign="top">
+        <h1>🦀 Crabbybot</h1>
+        <a href="https://git.io/typing-svg">
+          <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=1000&color=F74C00&vCenter=true&width=550&lines=The+high-performance+Rust+AI+bridge.;Asynchronous.+Concurrent.+Blazing+fast.;CLI%2C+Telegram+%26+Discord+integration.;Zero+runtime+dependencies.+Pure+Rust." alt="Typing SVG" />
+        </a>
+        <br><br>
+        <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-stable-brightgreen.svg" alt="Rust"></a>
+        <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+        <a href="https://github.com/max-de-bug/crabbybot"><img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey" alt="Platform"></a>
+      </td>
+    </tr>
+  </table>
+</div>
 
 **Crabbybot** 🦀 is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot) and OpenClaw, it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
 
