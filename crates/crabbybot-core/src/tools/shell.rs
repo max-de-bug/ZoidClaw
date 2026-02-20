@@ -32,11 +32,11 @@ impl ExecTool {
 #[async_trait]
 impl Tool for ExecTool {
     fn name(&self) -> &str {
-        "exec"
+        "shell_exec"
     }
 
     fn description(&self) -> &str {
-        "Execute a shell command. Returns stdout and stderr."
+        "Execute a shell command and return its stdout and stderr output."
     }
 
     fn parameters(&self) -> Value {
@@ -52,7 +52,7 @@ impl Tool for ExecTool {
                     "description": "Optional working directory (defaults to workspace)"
                 },
                 "timeout": {
-                    "type": "integer",
+                    "type": "number",
                     "description": "Optional timeout in seconds (default: 30)"
                 }
             },

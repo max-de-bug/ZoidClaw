@@ -17,7 +17,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use futures::future;
-use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 
 use crate::bus::events::OutboundMessage;

@@ -24,3 +24,6 @@ tmp/
 build_output.txt
 test_output.txt
 test_output2.txt
+
+# Ignore local configuration files
+config.json

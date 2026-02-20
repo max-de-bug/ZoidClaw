@@ -97,11 +97,16 @@ impl LlmProvider for FallbackProvider {
                 Ok(res) => return Ok(res),
                 Err(e) => {
                     let err_str = e.to_string();
-                    if err_str.contains("429") || err_str.contains("quota") || err_str.contains("rate limit") {
+                    if err_str.contains("429")
+                        || err_str.contains("quota")
+                        || err_str.contains("rate limit")
+                        || err_str.contains("404")
+                        || err_str.contains("tool call validation")
+                    {
                         warn!(
                             provider = %name,
                             error = %err_str,
-                            "Provider failed with quota error, entering quarantine"
+                            "Provider failed with retryable error, entering quarantine"
                         );
                         {
                             let mut health = self.health.lock().unwrap();

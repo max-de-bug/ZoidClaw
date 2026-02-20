@@ -1,28 +1,28 @@
 {
   "providers": {
     "openrouter": {
-      "apiKey": "sk-or-v1-YOUR_OPENROUTER_KEY",
+      "apiKey": "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",
       "apiBase": "https://openrouter.ai/api/v1"
     },
     "openai": {
-      "apiKey": "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"
+      "apiKey": ""
     },
     "anthropic": {
-      "apiKey": "sk-ant-YOUR_ANTHROPIC_KEY"
+      "apiKey": ""
     },
     "groq": {
       "apiKey": "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",
       "model": "llama-3.3-70b-versatile"
     },
     "gemini": {
-      "apiKey": "AIzaSyB0BtmUtxmSPrx_pipLK1czwIn2waweFU4",
+      "apiKey": "AIzaSyCACfsUEpFcFOJzxipzcAZRlduyGka_TFE",
       "model": "gemini-2.0-flash"
     }
   },
   "agents": {
     "defaults": {
       "workspace": "~/.crabbybot/workspace",
-      "model": "gpt-4o-mini",
+      "model": "openrouter/auto",
       "maxTokens": 8192,
       "temperature": 0.7,
       "maxToolIterations": 20

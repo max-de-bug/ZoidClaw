@@ -124,7 +124,6 @@ impl Session {
 
             if estimated_tokens >= budget {
                 // This message alone fills the budget; include it and stop.
-                budget = 0;
                 break;
             }
             budget = budget.saturating_sub(estimated_tokens);
