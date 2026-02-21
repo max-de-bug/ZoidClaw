@@ -21,6 +21,7 @@ use crabbybot_core::provider::openai::OpenAiProvider;
 use crabbybot_core::provider::LlmProvider;
 use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
+use crabbybot_core::tools::polymarket::{PolymarketTrendingTool, PolymarketSearchTool, PolymarketMarketTool};
 use crabbybot_core::tools::pumpfun::{PumpFunTokenTool, PumpFunSearchTool};
 use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
 use crabbybot_core::tools::shell::ExecTool;
@@ -238,6 +239,11 @@ fn setup_agent(
     // Pump.fun tools 
     tools.register(Box::new(PumpFunTokenTool::new()));
     tools.register(Box::new(PumpFunSearchTool::new()));
+
+    // Polymarket prediction-market tools
+    tools.register(Box::new(PolymarketTrendingTool::new()));
+    tools.register(Box::new(PolymarketSearchTool::new()));
+    tools.register(Box::new(PolymarketMarketTool::new()));
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),
