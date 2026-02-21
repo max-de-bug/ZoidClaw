@@ -21,6 +21,7 @@ use crabbybot_core::provider::openai::OpenAiProvider;
 use crabbybot_core::provider::LlmProvider;
 use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
+use crabbybot_core::tools::pumpfun::{PumpFunTokenTool, PumpFunSearchTool};
 use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
 use crabbybot_core::tools::shell::ExecTool;
 use crabbybot_core::tools::solana::{SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool};
@@ -233,6 +234,10 @@ fn setup_agent(
     tools.register(Box::new(SolanaBalanceTool::new(&config.tools.solana_rpc_url)));
     tools.register(Box::new(SolanaTransactionsTool::new(&config.tools.solana_rpc_url)));
     tools.register(Box::new(SolanaTokenBalancesTool::new(&config.tools.solana_rpc_url)));
+
+    // Pump.fun tools 
+    tools.register(Box::new(PumpFunTokenTool::new()));
+    tools.register(Box::new(PumpFunSearchTool::new()));
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),

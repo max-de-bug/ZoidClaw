@@ -18,7 +18,7 @@
   </table>
 </div>
 
-**Crabbybot** 🦀 is an ultra-lightweight, blazing-fast personal AI assistant written in Rust. Inspired by [nanobot](https://github.com/HKUDS/nanobot) and OpenClaw, it provides a direct, high-performance bridge between your local environment and Large Language Models (LLMs).
+**Meet Crabbybot:** an ultra-lightweight, ZeroClaw-style AI assistant that deploys in seconds. Written in pure Rust with a tiny ~5MB footprint, it delivers blazing-fast local execution, seamless Telegram integration, and a commanding edge with native Pump.fun & Solana tools.
 
 ## 🚀 Key Features
 
@@ -154,4 +154,4 @@ crabbybot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summ
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-*Built with 🦀 by the Connor.*
+*Built with 🦀 by Connor.*

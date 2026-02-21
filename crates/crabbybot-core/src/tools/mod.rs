@@ -5,6 +5,7 @@
 //! tools and dispatches tool calls by name.
 
 pub mod filesystem;
+pub mod pumpfun;
 pub mod schedule;
 pub mod shell;
 pub mod solana;

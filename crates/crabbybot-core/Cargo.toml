@@ -25,6 +25,6 @@ teloxide = { workspace = true, optional = true }
 serenity = { workspace = true, optional = true }
 
 [features]
-default = ["telegram", "discord"]
+default = ["telegram"]
 telegram = ["dep:teloxide"]
 discord = ["dep:serenity"]

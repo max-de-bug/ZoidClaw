@@ -24,6 +24,6 @@ tokio-util = { workspace = true }
 futures = "0.3"
 
 [features]
-default = ["telegram", "discord"]
+default = ["telegram"]  # Discord is opt-in: cargo build --features discord
 telegram = ["crabbybot-core/telegram"]
 discord = ["crabbybot-core/discord"]
