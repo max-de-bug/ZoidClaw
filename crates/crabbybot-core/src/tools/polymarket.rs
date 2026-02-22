@@ -1,17 +1,19 @@
 //! Polymarket prediction-market tools.
 //!
-//! Provides real-time access to Polymarket prediction markets via the
-//! official [`polymarket_sdk`] crate (`polymarket-rust-sdk`). Gives CrabbyBot
-//! a unique competitive advantage — no other lightweight AI agent has native
-//! prediction-market intelligence.
+//! Provides real-time access to Polymarket prediction markets via direct
+//! REST API calls to the Gamma API and CLOB API. Uses the SDK's type
+//! definitions for deserialization, but bypasses the SDK's internal HTTP
+//! client to use our own `reqwest` client with `rustls-tls` (bundled
+//! Mozilla CA roots), which avoids TLS trust issues on Windows Schannel.
 //!
 //! ## Architecture
 //!
 //! All tools share a common pattern:
 //! 1. Parse user arguments from JSON
-//! 2. Create a `PolymarketClient<Public>` (no auth needed for reads)
-//! 3. Call the appropriate SDK method
-//! 4. Format the response into a rich, human-readable string
+//! 2. Create a `reqwest::Client` with `rustls` TLS backend
+//! 3. Call the Polymarket REST API directly
+//! 4. Deserialize into SDK types (`GammaMarket`, `SimplifiedMarket`, etc.)
+//! 5. Format the response into a rich, human-readable string
 //!
 //! ## Usage in Telegram
 //!
@@ -21,12 +23,77 @@
 //! - "Get details on Polymarket condition 0x123..."
 
 use async_trait::async_trait;
-use polymarket_sdk::{GammaMarket, OrderBook, PolymarketClient, SimplifiedMarket};
+use polymarket_sdk::{OrderBook, SimplifiedMarket};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::debug;
+use std::time::Duration;
+use tracing::{debug, error};
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomGammaEvent {
+    pub slug: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomGammaMarket {
+    pub question: String,
+    pub active: bool,
+    pub closed: bool,
+    pub slug: String,
+    // Outcomes can be a proper list or a JSON stringified list
+    #[serde(default, deserialize_with = "deserialize_stringified_array")]
+    pub outcomes: Vec<String>,
+    #[serde(default)]
+    pub events: Vec<CustomGammaEvent>,
+}
+
+fn deserialize_stringified_array<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value: Value = Deserialize::deserialize(deserializer)?;
+    match value {
+        Value::Array(arr) => Ok(arr.into_iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+        Value::String(s) => {
+            if s.starts_with('[') {
+                serde_json::from_str(&s).map_err(serde::de::Error::custom)
+            } else {
+                Ok(vec![s])
+            }
+        }
+        _ => Ok(vec![]),
+    }
+}
 
 use super::Tool;
+
+// ── Constants ──────────────────────────────────────────────────────
+
+const GAMMA_API_URL: &str = "https://gamma-api.polymarket.com";
+const CLOB_API_URL: &str = "https://clob.polymarket.com";
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+
+use std::net::SocketAddr;
+use std::str::FromStr;
+
+/// Build a reqwest client that uses rustls (bundled CA roots) to avoid
+/// Windows Schannel `SEC_E_UNTRUSTED_ROOT` failures.
+/// Also includes DNS overrides for Polymarket domains to bypass ISP
+/// DNS sinkholing (e.g. A1 Bulgaria).
+fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
+    let cloudflare_ip = SocketAddr::from_str("104.18.34.205:443").unwrap();
+    
+    reqwest::Client::builder()
+        .use_rustls_tls()
+        .timeout(REQUEST_TIMEOUT)
+        .user_agent("crabbybot/0.1")
+        .resolve("gamma-api.polymarket.com", cloudflare_ip)
+        .resolve("clob.polymarket.com", cloudflare_ip)
+        .build()
+}
 
 // ── PolymarketTrendingTool ─────────────────────────────────────────
 
@@ -69,18 +136,33 @@ impl Tool for PolymarketTrendingTool {
             .get("limit")
             .and_then(|v| v.as_u64().or_else(|| v.as_f64().map(|f| f as u64)))
             .unwrap_or(5)
-            .min(10) as u32;
+            .min(10);
 
         debug!(limit, "Fetching trending Polymarket markets");
 
-        let client = match PolymarketClient::new_public(None) {
+        let client = match build_http_client() {
             Ok(c) => c,
-            Err(e) => return format!("❌ Failed to initialize Polymarket client: {e}"),
+            Err(e) => return format!("❌ Failed to create HTTP client: {e}"),
         };
 
-        let markets = match client.get_gamma_markets(Some(limit), None).await {
-            Ok(m) => m,
-            Err(e) => return format!("❌ Failed to fetch trending markets: {e}"),
+        let url = format!(
+            "{}/markets?limit={}&active=true&closed=false&order=volume24hr&ascending=false",
+            GAMMA_API_URL, limit
+        );
+        let markets: Vec<CustomGammaMarket> = match client.get(&url).send().await {
+            Ok(resp) => {
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    error!(%status, %body, "Gamma API error");
+                    return format!("❌ Gamma API returned {status}: {}", truncate(&body, 200));
+                }
+                match resp.json().await {
+                    Ok(m) => m,
+                    Err(e) => return format!("❌ Failed to parse market data: {e}"),
+                }
+            }
+            Err(e) => return format!("❌ Failed to reach Polymarket: {e}"),
         };
 
         if markets.is_empty() {
@@ -146,14 +228,37 @@ impl Tool for PolymarketSearchTool {
 
         debug!(query, "Searching Polymarket");
 
-        let client = match PolymarketClient::new_public(None) {
+        let client = match build_http_client() {
             Ok(c) => c,
-            Err(e) => return format!("❌ Failed to initialize Polymarket client: {e}"),
+            Err(e) => return format!("❌ Failed to create HTTP client: {e}"),
         };
 
-        let markets = match client.search_markets(query).await {
-            Ok(m) => m,
-            Err(e) => return format!("❌ Search failed: {e}"),
+        let url = format!("{}/markets", GAMMA_API_URL);
+        let markets: Vec<CustomGammaMarket> = match client
+            .get(&url)
+            .query(&[
+                ("_q", query),
+                ("active", "true"),
+                ("closed", "false"),
+                ("order", "volume24hr"),
+                ("ascending", "false")
+            ])
+            .send()
+            .await
+        {
+            Ok(resp) => {
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    error!(%status, %body, "Gamma API search error");
+                    return format!("❌ Search failed ({status}): {}", truncate(&body, 200));
+                }
+                match resp.json().await {
+                    Ok(m) => m,
+                    Err(e) => return format!("❌ Failed to parse search results: {e}"),
+                }
+            }
+            Err(e) => return format!("❌ Failed to reach Polymarket: {e}"),
         };
 
         if markets.is_empty() {
@@ -222,23 +327,44 @@ impl Tool for PolymarketMarketTool {
 
         debug!(condition_id, "Looking up Polymarket market");
 
-        let client = match PolymarketClient::new_public(None) {
+        let client = match build_http_client() {
             Ok(c) => c,
-            Err(e) => return format!("❌ Failed to initialize Polymarket client: {e}"),
+            Err(e) => return format!("❌ Failed to create HTTP client: {e}"),
         };
 
         // Fetch the market info from the CLOB API
-        let market = match client.get_market(condition_id).await {
-            Ok(m) => m,
-            Err(e) => return format!("❌ Failed to fetch market: {e}"),
+        let url = format!("{}/markets/{}", CLOB_API_URL, condition_id);
+        let market: SimplifiedMarket = match client.get(&url).send().await {
+            Ok(resp) => {
+                if !resp.status().is_success() {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    error!(%status, %body, "CLOB market fetch error");
+                    return format!("❌ Market lookup failed ({status}): {}", truncate(&body, 200));
+                }
+                match resp.json().await {
+                    Ok(m) => m,
+                    Err(e) => return format!("❌ Failed to parse market data: {e}"),
+                }
+            }
+            Err(e) => return format!("❌ Failed to reach Polymarket: {e}"),
         };
 
         // Try to fetch order books for each token
         let mut order_books = Vec::new();
         for token in &market.tokens {
-            match client.get_order_book(&token.token_id).await {
-                Ok(book) => order_books.push((token.outcome.clone(), book)),
-                Err(_) => {} // silently skip if order book unavailable
+            let book_url = format!("{}/book", CLOB_API_URL);
+            if let Ok(resp) = client
+                .get(&book_url)
+                .query(&[("token_id", &token.token_id)])
+                .send()
+                .await
+            {
+                if resp.status().is_success() {
+                    if let Ok(book) = resp.json::<OrderBook>().await {
+                        order_books.push((token.outcome.clone(), book));
+                    }
+                }
             }
         }
 
@@ -249,7 +375,7 @@ impl Tool for PolymarketMarketTool {
 // ── Formatting Helpers ─────────────────────────────────────────────
 
 /// Format a Gamma market as a compact summary line for listing.
-fn format_gamma_market(rank: usize, market: &GammaMarket) -> String {
+fn format_gamma_market(rank: usize, market: &CustomGammaMarket) -> String {
     let question = if market.question.is_empty() {
         "(untitled)"
     } else {
@@ -270,15 +396,21 @@ fn format_gamma_market(rank: usize, market: &GammaMarket) -> String {
         market.outcomes.join(" / ")
     };
 
+    let display_slug = market
+        .events
+        .first()
+        .map(|e| e.slug.clone())
+        .unwrap_or_else(|| market.slug.clone());
+
     format!(
         "{rank}. {status} **{question}**\n   \
          🎯 Outcomes: {outcomes}\n   \
-         🔗 [polymarket.com/{slug}](https://polymarket.com/event/{slug})\n\n",
+         🔗 [https://polymarket.com/event/{slug}](https://polymarket.com/event/{slug})\n\n",
         rank = rank,
         status = status_icon,
         question = truncate(question, 80),
         outcomes = outcomes,
-        slug = market.slug,
+        slug = display_slug,
     )
 }
 

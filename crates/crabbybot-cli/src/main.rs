@@ -23,6 +23,7 @@ use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use crabbybot_core::tools::polymarket::{PolymarketTrendingTool, PolymarketSearchTool, PolymarketMarketTool};
 use crabbybot_core::tools::pumpfun::{PumpFunTokenTool, PumpFunSearchTool};
+use crabbybot_core::tools::rugcheck::RugCheckTool;
 use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
 use crabbybot_core::tools::shell::ExecTool;
 use crabbybot_core::tools::solana::{SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool};
@@ -244,6 +245,9 @@ fn setup_agent(
     tools.register(Box::new(PolymarketTrendingTool::new()));
     tools.register(Box::new(PolymarketSearchTool::new()));
     tools.register(Box::new(PolymarketMarketTool::new()));
+
+    // Token Analysis
+    tools.register(Box::new(RugCheckTool::new()));
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),

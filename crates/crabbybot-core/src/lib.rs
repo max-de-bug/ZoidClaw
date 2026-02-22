@@ -33,6 +33,7 @@
 //! let agent_config = AgentConfig {
 //!     model: Some(config.agents.defaults.model.clone()),
 //!     max_tokens: config.agents.defaults.max_tokens,
+//!     max_context_tokens: 30_000,
 //!     temperature: config.agents.defaults.temperature,
 //!     max_iterations: config.agents.defaults.max_tool_iterations,
 //!     workspace: config.workspace_path(),

@@ -18,6 +18,7 @@ scraper = { workspace = true }
 dirs = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
+regex = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 tokio-util = { workspace = true }

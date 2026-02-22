@@ -11,7 +11,7 @@ description = "An ultra-lightweight personal AI assistant written in Rust"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "stream"] }
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
@@ -23,6 +23,7 @@ dirs = "6"
 clap = { version = "4", features = ["derive"] }
 thiserror = "2"
 anyhow = "1"
+regex = "1"
 async-trait = "0.1"
 futures = "0.3"
 tokio-util = { version = "0.7", features = ["rt"] }

@@ -447,3 +447,17 @@ fn well_known_token(mint: &str) -> &str {
         _ => "Unknown Token",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_dump_rugcheck() {
+        let url = "https://api.rugcheck.xyz/v1/tokens/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/report";
+        let client = reqwest::Client::builder().user_agent("Mozilla/5.0").build().unwrap();
+        let resp = client.get(url).send().await.unwrap();
+        let json: serde_json::Value = resp.json().await.unwrap();
+        std::fs::write("rugcheck_dump.json", serde_json::to_string_pretty(&json).unwrap()).unwrap();
+    }
+}

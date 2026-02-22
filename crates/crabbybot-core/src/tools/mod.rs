@@ -7,6 +7,7 @@
 pub mod filesystem;
 pub mod polymarket;
 pub mod pumpfun;
+pub mod rugcheck;
 pub mod schedule;
 pub mod shell;
 pub mod solana;
