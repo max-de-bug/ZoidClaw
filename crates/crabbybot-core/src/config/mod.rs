@@ -48,13 +48,25 @@ impl Config {
             if path.exists() {
                 tracing::debug!("Loading config from: {}", path.display());
                 let content = std::fs::read_to_string(&path)?;
-                let config: Config = serde_json::from_str(&content)?;
+                let mut config: Config = serde_json::from_str(&content)?;
+
+                // Security: Override sensitive fields from environment variables if present
+                if let Ok(key) = std::env::var("SOLANA_PRIVATE_KEY") {
+                    tracing::info!("Using Solana private key from environment variable");
+                    config.tools.solana_private_key = Some(key);
+                }
+
                 return Ok(config);
             }
         }
 
         // No config found, return default with placeholders
-        Ok(Config::default())
+        let mut config = Config::default();
+        if let Ok(key) = std::env::var("SOLANA_PRIVATE_KEY") {
+            tracing::info!("Using Solana private key from environment variable");
+            config.tools.solana_private_key = Some(key);
+        }
+        Ok(config)
     }
 
     /// Load configuration from a specific path.
@@ -269,6 +281,7 @@ pub struct ToolsConfig {
     pub web_search: WebSearchConfig,
     pub exec: ExecConfig,
     pub solana_rpc_url: String,
+    pub solana_private_key: Option<String>,
 }
 
 impl Default for ToolsConfig {
@@ -278,6 +291,7 @@ impl Default for ToolsConfig {
             web_search: WebSearchConfig::default(),
             exec: ExecConfig::default(),
             solana_rpc_url: "https://api.mainnet-beta.solana.com".into(),
+            solana_private_key: None,
         }
     }
 }

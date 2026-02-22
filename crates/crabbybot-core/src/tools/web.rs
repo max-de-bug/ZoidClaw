@@ -18,9 +18,9 @@ pub struct WebSearchTool {
 }
 
 impl WebSearchTool {
-    pub fn new(api_key: &str, max_results: u32) -> Self {
+    pub fn new(client: Client, api_key: &str, max_results: u32) -> Self {
         Self {
-            client: Client::new(),
+            client,
             api_key: api_key.to_string(),
             max_results,
         }
@@ -140,21 +140,12 @@ pub struct WebFetchTool {
 }
 
 impl WebFetchTool {
-    pub fn new() -> Self {
-        Self {
-            client: Client::builder()
-                .timeout(std::time::Duration::from_secs(15))
-                .build()
-                .unwrap_or_else(|_| Client::new()),
-        }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 
-impl Default for WebFetchTool {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+// Default removed to encourage explicit client injection
 
 #[async_trait]
 impl Tool for WebFetchTool {

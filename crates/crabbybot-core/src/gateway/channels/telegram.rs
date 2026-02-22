@@ -63,12 +63,27 @@ impl TelegramTransport {
 
                 async move {
                     match msg {
-                        OutboundMessage::Reply { chat_id, content, .. } => {
+                        OutboundMessage::Reply { chat_id, content, buttons, .. } => {
                             // ── Final reply: send as new message(s) and clear progress ──
                             if let Ok(id) = chat_id.parse::<i64>() {
                                 let chunks = chunk_message(&content, TELEGRAM_MAX_LEN);
-                                for chunk in chunks {
-                                    if let Err(e) = bot_out.send_message(ChatId(id), chunk).await {
+                                let num_chunks = chunks.len();
+                                
+                                for (i, chunk) in chunks.into_iter().enumerate() {
+                                    let mut send = bot_out.send_message(ChatId(id), chunk);
+                                    
+                                    // Attach buttons only to the LAST chunk
+                                    if i == num_chunks - 1 {
+                                        if let Some(ref btns) = buttons {
+                                            use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
+                                            let keyboard: Vec<Vec<InlineKeyboardButton>> = btns.iter()
+                                                .map(|b| vec![InlineKeyboardButton::callback(b.text.clone(), b.data.clone())])
+                                                .collect();
+                                            send = send.reply_markup(InlineKeyboardMarkup::new(keyboard));
+                                        }
+                                    }
+
+                                    if let Err(e) = send.await {
                                         error!("Failed to send Telegram message: {}", e);
                                     }
                                 }
@@ -148,7 +163,8 @@ impl TelegramTransport {
         // Set up inbound update handler
         let bus = Arc::clone(&self.bus);
         let allow_from = self.allow_from.clone();
-        let handler = Update::filter_message().endpoint(
+
+        let message_handler = Update::filter_message().endpoint(
             move |_bot: Bot, msg: Message, bus: Arc<MessageBus>, allow_from: Vec<String>| async move {
                 let user_id = msg.from.as_ref().map(|u| u.id.to_string()).unwrap_or_else(|| "unknown".to_owned());
 
@@ -179,6 +195,44 @@ impl TelegramTransport {
                 respond(())
             },
         );
+
+        let callback_handler = Update::filter_callback_query().endpoint(
+            move |bot: Bot, q: CallbackQuery, bus: Arc<MessageBus>, allow_from: Vec<String>| async move {
+                let user_id = q.from.id.to_string();
+
+                // Enforce allowFrom ACL
+                if !allow_from.is_empty() && !allow_from.contains(&user_id) {
+                    warn!(user_id, "Rejected callback query from unauthorized user");
+                    return respond(());
+                }
+
+                if let (Some(data), Some(msg)) = (q.data, q.message) {
+                    info!(user_id, data, "Received callback query");
+                    
+                    // Treat the button data as an inbound message
+                    let inbound = InboundMessage {
+                        channel: "telegram".to_owned(),
+                        chat_id: msg.chat().id.to_string(),
+                        user_id: user_id.clone(),
+                        content: data,
+                        media: Vec::new(),
+                        is_system: false,
+                    };
+
+                    if let Err(e) = bus.inbound_sender().send(inbound).await {
+                        error!("Failed to send callback inbound to bus: {}", e);
+                    }
+
+                    // Acknowledge the callback query to remove the spinner
+                    let _ = bot.answer_callback_query(q.id).await;
+                }
+                respond(())
+            },
+        );
+
+        let handler = dptree::entry()
+            .branch(message_handler)
+            .branch(callback_handler);
 
         Dispatcher::builder(bot, handler)
             .dependencies(dptree::deps![bus, allow_from])

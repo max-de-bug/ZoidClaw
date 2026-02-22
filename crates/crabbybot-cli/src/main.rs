@@ -23,7 +23,10 @@ use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use crabbybot_core::tools::polymarket::{PolymarketTrendingTool, PolymarketSearchTool, PolymarketMarketTool};
 use crabbybot_core::tools::pumpfun::{PumpFunTokenTool, PumpFunSearchTool};
+use crabbybot_core::tools::alpha_summary::AlphaSummaryTool;
+use crabbybot_core::tools::pumpfun_buy::PumpFunBuyTool;
 use crabbybot_core::tools::rugcheck::RugCheckTool;
+use crabbybot_core::tools::sentiment::SentimentTool;
 use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
 use crabbybot_core::tools::shell::ExecTool;
 use crabbybot_core::tools::solana::{SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool};
@@ -212,10 +215,11 @@ fn setup_agent(
         restrict,
         config.tools.exec.timeout_seconds,
     )));
-    tools.register(Box::new(WebFetchTool::new()));
+    tools.register(Box::new(WebFetchTool::new(client.clone())));
 
     if !config.tools.web_search.api_key.is_empty() {
         tools.register(Box::new(WebSearchTool::new(
+            client.clone(),
             &config.tools.web_search.api_key,
             config.tools.web_search.max_results,
         )));
@@ -233,13 +237,13 @@ fn setup_agent(
     }
 
     // Solana tools (crypto-native on-chain data)
-    tools.register(Box::new(SolanaBalanceTool::new(&config.tools.solana_rpc_url)));
-    tools.register(Box::new(SolanaTransactionsTool::new(&config.tools.solana_rpc_url)));
-    tools.register(Box::new(SolanaTokenBalancesTool::new(&config.tools.solana_rpc_url)));
+    tools.register(Box::new(SolanaBalanceTool::new(client.clone(), &config.tools.solana_rpc_url)));
+    tools.register(Box::new(SolanaTransactionsTool::new(client.clone(), &config.tools.solana_rpc_url)));
+    tools.register(Box::new(SolanaTokenBalancesTool::new(client.clone(), &config.tools.solana_rpc_url)));
 
     // Pump.fun tools 
-    tools.register(Box::new(PumpFunTokenTool::new()));
-    tools.register(Box::new(PumpFunSearchTool::new()));
+    tools.register(Box::new(PumpFunTokenTool::new(client.clone())));
+    tools.register(Box::new(PumpFunSearchTool::new(client.clone())));
 
     // Polymarket prediction-market tools
     tools.register(Box::new(PolymarketTrendingTool::new()));
@@ -247,7 +251,14 @@ fn setup_agent(
     tools.register(Box::new(PolymarketMarketTool::new()));
 
     // Token Analysis
-    tools.register(Box::new(RugCheckTool::new()));
+    tools.register(Box::new(RugCheckTool::new(client.clone())));
+    tools.register(Box::new(SentimentTool::new(client.clone())));
+    tools.register(Box::new(AlphaSummaryTool::new(client.clone())));
+    tools.register(Box::new(PumpFunBuyTool::new(
+        client.clone(),
+        &config.tools.solana_rpc_url,
+        config.tools.solana_private_key.clone(),
+    )));
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),
@@ -499,7 +510,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         print!("\n");
         match agent.process(input, session_key, None).await {
             Ok(response) => {
-                println!("  \x1b[32m{}\x1b[0m\n", response);
+                println!("  \x1b[32m{}\x1b[0m\n", response.content);
             }
             Err(e) => {
                 eprintln!("  \x1b[31mError: {}\x1b[0m\n", e);

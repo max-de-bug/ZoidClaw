@@ -30,3 +30,11 @@ tokio-util = { version = "0.7", features = ["rt"] }
 teloxide = { version = "0.13", features = ["macros"] }
 serenity = { version = "0.12", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
 polymarket-rust-sdk = "0.2.1"
+solana-transaction = { version = "4.0", features = ["serde"] }
+solana-pubkey = { version = "4.1", features = ["serde"] }
+solana-signature = { version = "3.3", features = ["serde"] }
+solana-message = { version = "4.0", features = ["serde"] }
+ed25519-dalek = { version = "2", features = ["serde"] }
+bs58 = "0.5"
+base64 = "0.22"
+bincode = "1.3"

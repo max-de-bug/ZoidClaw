@@ -123,12 +123,7 @@ struct DexSearchResponse {
 
 // ── Shared HTTP client ─────────────────────────────────────────────
 
-fn build_client() -> Client {
-    Client::builder()
-        .user_agent("Mozilla/5.0 (compatible; CrabbyBot/1.0)")
-        .build()
-        .unwrap_or_else(|_| Client::new())
-}
+// ── Shared HTTP client removed in favor of dependency injection ──
 
 // ── PumpFunTokenTool ───────────────────────────────────────────────
 
@@ -137,10 +132,8 @@ pub struct PumpFunTokenTool {
 }
 
 impl PumpFunTokenTool {
-    pub fn new() -> Self {
-        Self {
-            client: build_client(),
-        }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 
@@ -299,10 +292,8 @@ pub struct PumpFunSearchTool {
 }
 
 impl PumpFunSearchTool {
-    pub fn new() -> Self {
-        Self {
-            client: build_client(),
-        }
+    pub fn new(client: Client) -> Self {
+        Self { client }
     }
 }
 

@@ -125,12 +125,13 @@ impl AgentBridge {
                                 };
 
                                 match result {
-                                    Ok(reply) => {
-                                        bus_t
-                                            .publish_outbound(OutboundMessage::reply(
-                                                &channel, &chat_id, reply,
-                                            ))
-                                            .await;
+                                    Ok(res) => {
+                                        let outbound = if let Some(btns) = res.buttons {
+                                            OutboundMessage::reply_with_buttons(&channel, &chat_id, res.content, btns)
+                                        } else {
+                                            OutboundMessage::reply(&channel, &chat_id, res.content)
+                                        };
+                                        bus_t.publish_outbound(outbound).await;
                                     }
                                     Err(e) => {
                                         error!("Error processing message: {}", e);

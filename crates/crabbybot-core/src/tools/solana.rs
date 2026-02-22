@@ -37,9 +37,9 @@ struct SolanaRpc {
 }
 
 impl SolanaRpc {
-    fn new(rpc_url: &str) -> Self {
+    fn new(client: Client, rpc_url: &str) -> Self {
         Self {
-            client: Client::new(),
+            client,
             rpc_url: rpc_url.to_string(),
         }
     }
@@ -106,9 +106,9 @@ pub struct SolanaBalanceTool {
 }
 
 impl SolanaBalanceTool {
-    pub fn new(rpc_url: &str) -> Self {
+    pub fn new(client: Client, rpc_url: &str) -> Self {
         Self {
-            rpc: SolanaRpc::new(rpc_url),
+            rpc: SolanaRpc::new(client, rpc_url),
         }
     }
 }
@@ -172,9 +172,9 @@ pub struct SolanaTransactionsTool {
 }
 
 impl SolanaTransactionsTool {
-    pub fn new(rpc_url: &str) -> Self {
+    pub fn new(client: Client, rpc_url: &str) -> Self {
         Self {
-            rpc: SolanaRpc::new(rpc_url),
+            rpc: SolanaRpc::new(client, rpc_url),
         }
     }
 }
@@ -303,9 +303,9 @@ pub struct SolanaTokenBalancesTool {
 }
 
 impl SolanaTokenBalancesTool {
-    pub fn new(rpc_url: &str) -> Self {
+    pub fn new(client: Client, rpc_url: &str) -> Self {
         Self {
-            rpc: SolanaRpc::new(rpc_url),
+            rpc: SolanaRpc::new(client, rpc_url),
         }
     }
 }

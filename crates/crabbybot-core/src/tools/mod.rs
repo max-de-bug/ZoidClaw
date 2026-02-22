@@ -4,11 +4,14 @@
 //! `ToolRegistry`. The agent loop queries the registry for available
 //! tools and dispatches tool calls by name.
 
+pub mod alpha_summary;
 pub mod filesystem;
 pub mod polymarket;
 pub mod pumpfun;
+pub mod pumpfun_buy;
 pub mod rugcheck;
 pub mod schedule;
+pub mod sentiment;
 pub mod shell;
 pub mod solana;
 pub mod web;

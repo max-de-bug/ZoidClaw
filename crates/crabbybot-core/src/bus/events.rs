@@ -32,6 +32,7 @@ pub enum OutboundMessage {
         channel: String,
         chat_id: String,
         content: String,
+        buttons: Option<Vec<Button>>,
     },
     /// Ask the channel to display a "typing…" indicator.
     Typing {
@@ -46,13 +47,36 @@ pub enum OutboundMessage {
     },
 }
 
+/// A UI button that can be attached to a message.
+#[derive(Debug, Clone)]
+pub struct Button {
+    pub text: String,
+    pub data: String,
+}
+
 impl OutboundMessage {
-    /// Convenience: create a `Reply` message.
+    /// Convenience: create a `Reply` message without buttons.
     pub fn reply(channel: impl Into<String>, chat_id: impl Into<String>, content: impl Into<String>) -> Self {
         Self::Reply {
             channel: channel.into(),
             chat_id: chat_id.into(),
             content: content.into(),
+            buttons: None,
+        }
+    }
+
+    /// Convenience: create a `Reply` message with buttons.
+    pub fn reply_with_buttons(
+        channel: impl Into<String>,
+        chat_id: impl Into<String>,
+        content: impl Into<String>,
+        buttons: Vec<Button>,
+    ) -> Self {
+        Self::Reply {
+            channel: channel.into(),
+            chat_id: chat_id.into(),
+            content: content.into(),
+            buttons: Some(buttons),
         }
     }
 
@@ -115,7 +139,10 @@ mod tests {
         let msg = OutboundMessage::reply("telegram", "chat123", "Hello!");
         assert_eq!(msg.channel(), "telegram");
         assert_eq!(msg.chat_id(), "chat123");
-        assert!(matches!(msg, OutboundMessage::Reply { .. }));
+        match msg {
+            OutboundMessage::Reply { buttons, .. } => assert!(buttons.is_none()),
+            _ => panic!("Expected Reply variant"),
+        }
     }
 
     #[test]

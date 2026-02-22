@@ -4,6 +4,7 @@
 
 use super::Tool;
 use async_trait::async_trait;
+use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -41,14 +42,27 @@ pub struct RugCheckTool {
 }
 
 impl RugCheckTool {
-    pub fn new() -> Self {
-        Self {
-            client: reqwest::Client::builder()
-                .timeout(REQUEST_TIMEOUT)
-                .user_agent("crabbybot/0.1")
-                .build()
-                .unwrap_or_else(|_| reqwest::Client::new()),
+    pub fn new(client: Client) -> Self {
+        Self { client }
+    }
+
+    pub async fn fetch_report(&self, address: &str) -> Result<RugcheckReport, String> {
+        let url = format!("{}/tokens/{}/report", RUGCHECK_API_URL, address);
+
+        let response = self.client.get(&url).send().await
+            .map_err(|e| format!("❌ Network error connecting to Rugcheck API: {}", e))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            error!(%status, address, "Rugcheck API returned an error");
+            if status.as_u16() == 404 {
+                return Err(format!("❌ Token `{}` not found on Rugcheck or has no data.", address));
+            }
+            return Err(format!("❌ Rugcheck API error: {}", status));
         }
+
+        response.json::<RugcheckReport>().await
+            .map_err(|e| format!("❌ Failed to parse the Rugcheck report: {}", e))
     }
 }
 
@@ -88,25 +102,9 @@ impl Tool for RugCheckTool {
 
         debug!(address, "Fetching token analysis from Rugcheck");
 
-        let url = format!("{}/tokens/{}/report", RUGCHECK_API_URL, address);
-
-        let response = match self.client.get(&url).send().await {
+        let report = match self.fetch_report(address).await {
             Ok(r) => r,
-            Err(e) => return format!("❌ Network error connecting to Rugcheck API: {}", e),
-        };
-
-        if !response.status().is_success() {
-            let status = response.status();
-            error!(%status, address, "Rugcheck API returned an error");
-            if status.as_u16() == 404 {
-                return format!("❌ Token `{}` not found on Rugcheck or has no data.", address);
-            }
-            return format!("❌ Rugcheck API error: {}", status);
-        }
-
-        let report: RugcheckReport = match response.json().await {
-            Ok(data) => data,
-            Err(e) => return format!("❌ Failed to parse the Rugcheck report: {}", e),
+            Err(e) => return e,
         };
 
         // Format the output
@@ -162,7 +160,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rugcheck_tool() {
-        let tool = RugCheckTool::new();
+        let tool = RugCheckTool::new(reqwest::Client::new());
         let mut args = HashMap::new();
         args.insert(
             "address".to_string(),

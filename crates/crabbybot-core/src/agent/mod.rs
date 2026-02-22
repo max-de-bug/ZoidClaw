@@ -19,7 +19,7 @@ use std::sync::Arc;
 use futures::future;
 use tracing::{debug, info, warn};
 
-use crate::bus::events::OutboundMessage;
+use crate::bus::events::{OutboundMessage, Button};
 use crate::bus::MessageBus;
 use crate::provider::types::{ChatMessage, FunctionCall, ToolCallMessage};
 use crate::provider::LlmProvider;
@@ -28,6 +28,13 @@ use crate::tools::ToolRegistry;
 use context::ContextBuilder;
 use memory::MemoryStore;
 use skills::SkillsLoader;
+
+/// Structured result from the agent loop.
+#[derive(Debug, Clone)]
+pub struct AgentResult {
+    pub content: String,
+    pub buttons: Option<Vec<Button>>,
+}
 
 // ── Error type ────────────────────────────────────────────────────────────────
 
@@ -129,7 +136,7 @@ impl AgentLoop {
         content: &str,
         session_key: &str,
         bus: Option<&Arc<MessageBus>>,
-    ) -> Result<String, AgentError> {
+    ) -> Result<AgentResult, AgentError> {
         info!(session = session_key, "Processing user message");
 
         // ── 1. Typing indicator ───────────────────────────────────────
@@ -231,7 +238,7 @@ impl AgentLoop {
 
             // ── 7. Final response? ────────────────────────────────────
             if response.tool_calls.is_empty() {
-                let reply = response.content.unwrap_or_default();
+                let mut reply = response.content.unwrap_or_default();
 
                 self.sessions
                     .save(session_key)
@@ -242,7 +249,36 @@ impl AgentLoop {
                     iterations,
                     "Response complete"
                 );
-                return Ok(reply);
+
+                // Look for UI markers in the text
+                let mut buttons = None;
+                if let Some(pos) = reply.find("[UI_CONFIRM_BUY:") {
+                    let marker_block = &reply[pos..];
+                    if let (Some(start), Some(end)) = (marker_block.find(':'), marker_block.find(']')) {
+                        let parts = &marker_block[start + 1..end];
+                        if let Some((mint, amount)) = parts.split_once('|') {
+                            let mint = mint.trim();
+                            let amount = amount.trim();
+                            buttons = Some(vec![
+                                Button {
+                                    text: "Confirm Buy ✅".into(),
+                                    data: format!("Confirm Buy {} {}", mint, amount),
+                                },
+                                Button {
+                                    text: "Cancel ❌".into(),
+                                    data: "Cancel Buy".into(),
+                                },
+                            ]);
+                            // Remove the marker from user-facing text
+                            reply = reply[..pos].trim().to_string();
+                        }
+                    }
+                }
+
+                return Ok(AgentResult {
+                    content: reply,
+                    buttons,
+                });
             }
 
             // ── 8. Concurrent tool execution ──────────────────────────
@@ -412,7 +448,7 @@ mod tests {
         let mut agent = AgentLoop::new(Box::new(provider), tools, make_config(tmp.clone()));
 
         let reply = agent.process("Hi", "cli:direct", None).await.unwrap();
-        assert_eq!(reply, "Hello!");
+        assert_eq!(reply.content, "Hello!");
     }
 
     // ── Test: concurrent tool execution ───────────────────────────────────────
@@ -445,7 +481,7 @@ mod tests {
         let mut agent = AgentLoop::new(Box::new(provider), registry, make_config(tmp));
         let reply = agent.process("run both", "cli:direct", None).await.unwrap();
 
-        assert_eq!(reply, "done");
+        assert_eq!(reply.content, "done");
         // Both tools must have been called exactly once
         assert_eq!(counter_a.load(Ordering::SeqCst), 1, "counter_a should be called once");
         assert_eq!(counter_b.load(Ordering::SeqCst), 1, "counter_b should be called once");
