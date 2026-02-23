@@ -123,6 +123,11 @@ impl AgentLoop {
         }
     }
 
+    /// Clear the history for a specific session.
+    pub fn clear_session(&mut self, session_key: &str) -> bool {
+        self.sessions.delete(session_key)
+    }
+
     /// Process a single user message and return the agent's response.
     ///
     /// Publishes `Typing` and `Progress` events to `bus` during processing
@@ -262,11 +267,13 @@ impl AgentLoop {
                             buttons = Some(vec![
                                 Button {
                                     text: "Confirm Buy ✅".into(),
-                                    data: format!("Confirm Buy {} {}", mint, amount),
+                                    data: Some(format!("Confirm Buy {} {}", mint, amount)),
+                                    url: None,
                                 },
                                 Button {
                                     text: "Cancel ❌".into(),
-                                    data: "Cancel Buy".into(),
+                                    data: Some("Cancel Buy".into()),
+                                    url: None,
                                 },
                             ]);
                             // Remove the marker from user-facing text

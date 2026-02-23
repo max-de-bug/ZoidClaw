@@ -9,7 +9,6 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::{debug, error};
 
 pub struct SentimentTool {
     client: Client,
@@ -37,6 +36,7 @@ struct DexInfo {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct DexSocial {
     #[serde(rename = "type")]
     social_type: String,

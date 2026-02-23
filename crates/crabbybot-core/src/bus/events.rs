@@ -47,11 +47,30 @@ pub enum OutboundMessage {
     },
 }
 
+/// Actions for controlling background services.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StreamAction {
+    Start,
+    Stop,
+}
+
+/// Internal coordination messages between components.
+#[derive(Debug, Clone)]
+pub enum InternalMessage {
+    /// Control the Pump.fun real-time stream.
+    StreamControl {
+        action: StreamAction,
+        chat_id: String,
+    },
+}
+
 /// A UI button that can be attached to a message.
 #[derive(Debug, Clone)]
 pub struct Button {
     pub text: String,
-    pub data: String,
+    pub data: Option<String>,
+    pub url: Option<String>,
 }
 
 impl OutboundMessage {

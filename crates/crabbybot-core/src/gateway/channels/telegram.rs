@@ -51,6 +51,13 @@ impl TelegramTransport {
 
         info!("Telegram transport started");
 
+        // Ensure no webhooks are active and drop pending updates before starting polling.
+        // This prevents the common `Api(TerminatedByOtherGetUpdates)` error if a webhook
+        // was previously configured on this bot token.
+        if let Err(e) = bot.delete_webhook().drop_pending_updates(true).send().await {
+            warn!("Failed to delete webhook (normal on first startup): {}", e);
+        }
+
         // Subscribe to outbound messages FIRST (before dispatcher starts)
         {
             let bot_out = bot.clone();
@@ -77,7 +84,14 @@ impl TelegramTransport {
                                         if let Some(ref btns) = buttons {
                                             use teloxide::types::{InlineKeyboardButton, InlineKeyboardMarkup};
                                             let keyboard: Vec<Vec<InlineKeyboardButton>> = btns.iter()
-                                                .map(|b| vec![InlineKeyboardButton::callback(b.text.clone(), b.data.clone())])
+                                                .map(|b| {
+                                                    let btn = if let Some(ref url) = b.url {
+                                                        InlineKeyboardButton::url(b.text.clone(), url.parse().unwrap_or("https://google.com".parse().unwrap()))
+                                                    } else {
+                                                        InlineKeyboardButton::callback(b.text.clone(), b.data.clone().unwrap_or_default())
+                                                    };
+                                                    vec![btn]
+                                                })
                                                 .collect();
                                             send = send.reply_markup(InlineKeyboardMarkup::new(keyboard));
                                         }

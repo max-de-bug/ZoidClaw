@@ -225,7 +225,7 @@ impl SessionManager {
         if let Ok(entries) = std::fs::read_dir(&self.sessions_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if path.extension().map_or(false, |e| e == "jsonl") {
+                if path.extension().is_some_and(|e| e == "jsonl") {
                     let key = path
                         .file_stem()
                         .unwrap_or_default()
@@ -252,7 +252,7 @@ impl SessionManager {
     // ── Private helpers ─────────────────────────────────────────────
 
     fn session_path(&self, key: &str) -> PathBuf {
-        let safe_name = key.replace(':', "_").replace('/', "_");
+        let safe_name = key.replace([':', '/'], "_");
         self.sessions_dir.join(format!("{}.jsonl", safe_name))
     }
 

@@ -3,10 +3,11 @@ use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use serenity::model::id::ChannelId;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 use crate::bus::MessageBus;
-use crate::bus::events::InboundMessage;
+use crate::bus::events::{InboundMessage, OutboundMessage};
 use crate::gateway::utils::chunk_message;
 
 /// Maximum Discord message length.
@@ -82,14 +83,12 @@ impl DiscordTransport {
         {
             let http = Arc::clone(&client.http);
             self.bus.subscribe_outbound("discord", move |msg| {
-                use crate::bus::events::OutboundMessage;
                 let http = Arc::clone(&http);
                 async move {
                     match msg {
                         OutboundMessage::Reply { chat_id, content, .. }
                         | OutboundMessage::Progress { chat_id, content, .. } => {
                             if let Ok(channel_id) = chat_id.parse::<u64>() {
-                                use serenity::model::id::ChannelId;
                                 let chunks = chunk_message(&content, DISCORD_MAX_LEN);
                                 for chunk in chunks {
                                     if let Err(e) = ChannelId::new(channel_id).say(&http, chunk).await {

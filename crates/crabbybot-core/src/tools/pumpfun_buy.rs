@@ -5,6 +5,7 @@
 use super::Tool;
 use super::rugcheck::RugCheckTool;
 use async_trait::async_trait;
+use base64::prelude::*;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use solana_transaction::versioned::VersionedTransaction;
@@ -160,7 +161,6 @@ impl Tool for PumpFunBuyTool {
         };
 
         // Sign and send
-        use base64::prelude::*;
         let tx_bytes = match BASE64_STANDARD.decode(swap_data.transaction_base64.trim()) {
             Ok(b) => b,
             Err(e) => return format!("❌ Failed to decode transaction base64: {}", e),
@@ -184,7 +184,7 @@ impl Tool for PumpFunBuyTool {
         }
 
         // Submit via RPC
-        let rpc_client = reqwest::Client::new();
+        let rpc_client = self.client.clone();
         let body = json!({
             "jsonrpc": "2.0",
             "id": 1,

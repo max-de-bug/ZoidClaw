@@ -37,4 +37,5 @@ solana-message = { version = "4.0", features = ["serde"] }
 ed25519-dalek = { version = "2", features = ["serde"] }
 bs58 = "0.5"
 base64 = "0.22"
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 bincode = "1.3"

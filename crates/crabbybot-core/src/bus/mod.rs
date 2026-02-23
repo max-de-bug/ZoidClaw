@@ -9,7 +9,7 @@
 
 pub mod events;
 
-use events::{InboundMessage, OutboundMessage};
+use events::{InboundMessage, OutboundMessage, InternalMessage};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -30,12 +30,14 @@ pub type SubscriberMap = Arc<RwLock<HashMap<String, Vec<OutboundCallback>>>>;
 pub struct MessageBus {
     inbound_tx: mpsc::Sender<InboundMessage>,
     outbound_tx: mpsc::Sender<OutboundMessage>,
+    internal_tx: mpsc::Sender<InternalMessage>,
     subscribers: SubscriberMap,
 }
 
 pub struct MessageBusReceivers {
     pub inbound_rx: mpsc::Receiver<InboundMessage>,
     pub outbound_rx: mpsc::Receiver<OutboundMessage>,
+    pub internal_rx: mpsc::Receiver<InternalMessage>,
 }
 
 impl MessageBus {
@@ -43,16 +45,19 @@ impl MessageBus {
     pub fn new(capacity: usize) -> (Self, MessageBusReceivers) {
         let (inbound_tx, inbound_rx) = mpsc::channel(capacity);
         let (outbound_tx, outbound_rx) = mpsc::channel(capacity);
+        let (internal_tx, internal_rx) = mpsc::channel(capacity);
 
         (
             Self {
                 inbound_tx,
                 outbound_tx,
+                internal_tx,
                 subscribers: Arc::new(RwLock::new(HashMap::new())),
             },
             MessageBusReceivers {
                 inbound_rx,
                 outbound_rx,
+                internal_rx,
             },
         )
     }
@@ -66,6 +71,13 @@ impl MessageBus {
     pub async fn publish_outbound(&self, msg: OutboundMessage) {
         if let Err(e) = self.outbound_tx.send(msg).await {
             error!("Failed to publish outbound message: {}", e);
+        }
+    }
+
+    /// Publish an internal message.
+    pub async fn publish_internal(&self, msg: InternalMessage) {
+        if let Err(e) = self.internal_tx.send(msg).await {
+            error!("Failed to publish internal message: {}", e);
         }
     }
 

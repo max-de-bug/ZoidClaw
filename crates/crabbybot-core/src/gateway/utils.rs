@@ -25,7 +25,7 @@ pub fn chunk_message(text: &str, max_len: usize) -> Vec<String> {
         let break_at = if break_at == 0 { max_len } else { break_at };
 
         chunks.push(remaining[..break_at].to_owned());
-        remaining = &remaining[break_at..].trim_start_matches('\n');
+        remaining = remaining[break_at..].trim_start_matches('\n');
     }
 
     chunks

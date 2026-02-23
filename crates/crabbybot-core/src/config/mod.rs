@@ -10,24 +10,13 @@ use std::path::{Path, PathBuf};
 /// Root configuration.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct Config {
     pub providers: ProvidersConfig,
     pub agents: AgentsConfig,
     pub tools: ToolsConfig,
     pub channels: ChannelsConfig,
     pub gateway: GatewayConfig,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            providers: ProvidersConfig::default(),
-            agents: AgentsConfig::default(),
-            tools: ToolsConfig::default(),
-            channels: ChannelsConfig::default(),
-            gateway: GatewayConfig::default(),
-        }
-    }
 }
 
 impl Config {
@@ -282,6 +271,7 @@ pub struct ToolsConfig {
     pub exec: ExecConfig,
     pub solana_rpc_url: String,
     pub solana_private_key: Option<String>,
+    pub pumpfun_stream: PumpFunStreamConfig,
 }
 
 impl Default for ToolsConfig {
@@ -292,8 +282,16 @@ impl Default for ToolsConfig {
             exec: ExecConfig::default(),
             solana_rpc_url: "https://api.mainnet-beta.solana.com".into(),
             solana_private_key: None,
+            pumpfun_stream: PumpFunStreamConfig::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PumpFunStreamConfig {
+    pub enabled: bool,
+    pub chat_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -337,7 +335,7 @@ pub struct ChannelsConfig {
     pub discord: Option<DiscordConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TelegramConfig {
     pub enabled: bool,
@@ -345,32 +343,12 @@ pub struct TelegramConfig {
     pub allow_from: Vec<String>,
 }
 
-impl Default for TelegramConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            token: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DiscordConfig {
     pub enabled: bool,
     pub token: String,
     pub allow_from: Vec<String>,
-}
-
-impl Default for DiscordConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            token: String::new(),
-            allow_from: Vec::new(),
-        }
-    }
 }
 
 // ── Gateway Configuration ───────────────────────────────────────────

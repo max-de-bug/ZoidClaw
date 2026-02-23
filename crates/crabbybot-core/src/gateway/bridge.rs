@@ -1,15 +1,14 @@
 use anyhow::Result;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{mpsc, Mutex};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
 use crate::agent::{AgentError, AgentLoop};
-use crate::bus::events::OutboundMessage;
+use crate::bus::events::{InboundMessage, OutboundMessage};
 use crate::bus::MessageBus;
 use crate::cron::CronService;
-use crate::session::SessionManager;
 
 /// Bridges the asynchronous [`MessageBus`] with the [`AgentLoop`].
 ///
@@ -61,7 +60,7 @@ impl AgentBridge {
     /// Run the bridge loop until the bus is closed or cancellation is requested.
     pub async fn run(
         self,
-        mut inbound_rx: tokio::sync::mpsc::Receiver<crate::bus::events::InboundMessage>,
+        mut inbound_rx: mpsc::Receiver<InboundMessage>,
     ) -> Result<()> {
         info!("Agent bridge started, waiting for inbound messages…");
 
@@ -100,21 +99,53 @@ impl AgentBridge {
                             tokio::spawn(async move {
                                 // ── Command routing (non-system messages only) ──────
                                 if !is_system {
-                                    if let Some(response) = handle_command(
+                                    match handle_command(
                                         &content,
                                         &session_key,
                                         &cron_t,
                                         &workspace_t,
                                         start_time,
+                                        &agent_t,
                                     )
                                     .await
                                     {
-                                        bus_t
-                                            .publish_outbound(OutboundMessage::reply(
-                                                &channel, &chat_id, response,
-                                            ))
-                                            .await;
-                                        return;
+                                        Some(CommandResult::Reply(response)) => {
+                                            bus_t
+                                                .publish_outbound(OutboundMessage::reply(
+                                                    &channel, &chat_id, response,
+                                                ))
+                                                .await;
+                                            return;
+                                        }
+                                        Some(CommandResult::AgentPassthrough(prompt)) => {
+                                            // Rewrite the command into a natural language prompt
+                                            // and fall through to agent processing below.
+                                            let result = {
+                                                let mut lock = agent_t.lock().await;
+                                                lock.process(&prompt, &session_key, Some(&bus_t)).await
+                                            };
+                                            match result {
+                                                Ok(res) => {
+                                                    let outbound = if let Some(btns) = res.buttons {
+                                                        OutboundMessage::reply_with_buttons(&channel, &chat_id, res.content, btns)
+                                                    } else {
+                                                        OutboundMessage::reply(&channel, &chat_id, res.content)
+                                                    };
+                                                    bus_t.publish_outbound(outbound).await;
+                                                }
+                                                Err(e) => {
+                                                    error!("Error processing command passthrough: {}", e);
+                                                    let error_msg = format_agent_error(&e);
+                                                    bus_t
+                                                        .publish_outbound(OutboundMessage::reply(
+                                                            &channel, &chat_id, error_msg,
+                                                        ))
+                                                        .await;
+                                                }
+                                            }
+                                            return;
+                                        }
+                                        None => {} // Not a command, fall through to agent
                                     }
                                 }
 
@@ -155,50 +186,75 @@ impl AgentBridge {
     }
 }
 
-// ── Command routing ───────────────────────────────────────────────────────────
+/// Result of command routing — either a direct reply or a prompt to pipe
+/// through the agent loop.
+enum CommandResult {
+    /// Send this text directly to the user.
+    Reply(String),
+    /// Rewrite the command into this prompt and process via `AgentLoop`.
+    AgentPassthrough(String),
+}
 
-/// Handle slash commands. Returns `Some(response)` if the message was a
-/// recognised command, `None` if the message should pass to the agent.
+/// Handle slash commands. Returns `Some(CommandResult)` if the message was a
+/// recognised command, `None` if the message should pass to the agent as-is.
 async fn handle_command(
     content: &str,
     session_key: &str,
     cron: &Arc<Mutex<CronService>>,
-    workspace: &PathBuf,
+    workspace: &Path,
     start_time: std::time::Instant,
-) -> Option<String> {
+    agent: &Arc<Mutex<AgentLoop>>,
+) -> Option<CommandResult> {
     let trimmed = content.trim();
     if !trimmed.starts_with('/') {
         return None;
     }
 
-    let (cmd, _args) = trimmed.split_once(' ').unwrap_or((trimmed, ""));
+    let (cmd, args) = trimmed.split_once(' ').unwrap_or((trimmed, ""));
+    let args = args.trim();
 
     match cmd {
-        "/help" | "/start" => Some(cmd_help()),
-        "/status" => Some(cmd_status(cron, workspace, start_time).await),
-        "/clear" => Some(cmd_clear(session_key, workspace)),
-        _ => None, // Unknown commands pass through to the agent
+        "/help" | "/start" => Some(CommandResult::Reply(cmd_help())),
+        "/status" => Some(CommandResult::Reply(cmd_status(cron, workspace, start_time).await)),
+        "/clear" | "/reset" | "/forget" => Some(CommandResult::Reply(cmd_clear(session_key, agent).await)),
+        // Crypto shortcuts — rewrite into agent prompts
+        "/portfolio" => Some(CommandResult::AgentPassthrough(
+            "Show my Solana wallet portfolio: SOL balance and all token balances.".into(),
+        )),
+        "/alpha" if !args.is_empty() => Some(CommandResult::AgentPassthrough(
+            format!("Give me a full alpha summary for token {}", args),
+        )),
+        "/buy" if !args.is_empty() => {
+            let parts: Vec<&str> = args.splitn(2, ' ').collect();
+            let mint = parts[0];
+            let amount = parts.get(1).unwrap_or(&"0.1");
+            Some(CommandResult::AgentPassthrough(
+                format!("Buy {} SOL of token {}", amount, mint),
+            ))
+        }
+        _ => None,
     }
 }
 
 fn cmd_help() -> String {
     "🦀 **Crabbybot Commands**\n\n\
+     🛠️ **General:**\n\
      `/help` — Show this help message\n\
      `/status` — Bot status (providers, model, uptime)\n\
-     `/clear` — Clear conversation history\n\n\
-     **Scheduling** (via natural language):\n\
+     `/clear` (or `/reset`, `/forget`) — Clear conversation history\n\n\
+     💰 **Crypto Shortcuts:**\n\
+     `/portfolio` — Your wallet’s SOL + token balances\n\
+     `/alpha <mint>` — Full safety + sentiment report\n\
+     `/buy <mint> [amount]` — Buy token (default: 0.1 SOL)\n\n\
+     ⏰ **Scheduling:**\n\
      Just ask! e.g. *\"Remind me to check SOL price every hour\"*\n\n\
-     **Solana** (via natural language):\n\
-     *\"What's the SOL balance of [address]?\"*\n\
-     *\"Show recent transactions for [address]\"*\n\
-     *\"What tokens does [address] hold?\"*\n\n\
      Any other message is processed by the AI assistant."
         .to_string()
 }
 
 async fn cmd_status(
     cron: &Arc<Mutex<CronService>>,
-    workspace: &PathBuf,
+    workspace: &Path,
     start_time: std::time::Instant,
 ) -> String {
     let uptime = start_time.elapsed();
@@ -222,12 +278,14 @@ async fn cmd_status(
     )
 }
 
-fn cmd_clear(session_key: &str, workspace: &PathBuf) -> String {
-    let mut mgr = SessionManager::new(workspace);
-    if mgr.delete(session_key) {
-        "✅ Conversation history cleared.".to_string()
+async fn cmd_clear(session_key: &str, agent: &Arc<Mutex<AgentLoop>>) -> String {
+    let mut lock = agent.lock().await;
+    if lock.clear_session(session_key) {
+        "✅ Conversation history cleared. I have forgotten our past messages."
+            .to_string()
     } else {
-        "ℹ️ No conversation history to clear.".to_string()
+        "ℹ️ No conversation history to clear."
+            .to_string()
     }
 }
 

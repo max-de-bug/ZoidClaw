@@ -8,11 +8,10 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::time::Duration;
 use tracing::{debug, error};
 
 const RUGCHECK_API_URL: &str = "https://api.rugcheck.xyz/v1";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+
 
 #[derive(Debug, Deserialize)]
 pub struct RugcheckFileMeta {

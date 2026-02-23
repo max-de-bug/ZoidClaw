@@ -27,8 +27,12 @@ use polymarket_sdk::{OrderBook, SimplifiedMarket};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::net::SocketAddr;
+use std::str::FromStr;
 use std::time::Duration;
 use tracing::{debug, error};
+
+use super::Tool;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -68,7 +72,6 @@ where
     }
 }
 
-use super::Tool;
 
 // ── Constants ──────────────────────────────────────────────────────
 
@@ -76,8 +79,6 @@ const GAMMA_API_URL: &str = "https://gamma-api.polymarket.com";
 const CLOB_API_URL: &str = "https://clob.polymarket.com";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
-use std::net::SocketAddr;
-use std::str::FromStr;
 
 /// Build a reqwest client that uses rustls (bundled CA roots) to avoid
 /// Windows Schannel `SEC_E_UNTRUSTED_ROOT` failures.
@@ -98,6 +99,7 @@ fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
 // ── PolymarketTrendingTool ─────────────────────────────────────────
 
 /// Fetches the most active prediction markets from Polymarket's Gamma API.
+#[derive(Default)]
 pub struct PolymarketTrendingTool;
 
 impl PolymarketTrendingTool {
@@ -187,6 +189,7 @@ impl Tool for PolymarketTrendingTool {
 // ── PolymarketSearchTool ───────────────────────────────────────────
 
 /// Searches Polymarket for markets matching a query string.
+#[derive(Default)]
 pub struct PolymarketSearchTool;
 
 impl PolymarketSearchTool {
@@ -286,6 +289,7 @@ impl Tool for PolymarketSearchTool {
 
 /// Fetches detailed information for a specific market by condition ID,
 /// including the live order book.
+#[derive(Default)]
 pub struct PolymarketMarketTool;
 
 impl PolymarketMarketTool {

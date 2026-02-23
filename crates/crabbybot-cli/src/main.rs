@@ -27,16 +27,19 @@ use crabbybot_core::tools::alpha_summary::AlphaSummaryTool;
 use crabbybot_core::tools::pumpfun_buy::PumpFunBuyTool;
 use crabbybot_core::tools::rugcheck::RugCheckTool;
 use crabbybot_core::tools::sentiment::SentimentTool;
+use crabbybot_core::tools::discovery::DiscoveryTool;
 use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
 use crabbybot_core::tools::shell::ExecTool;
 use crabbybot_core::tools::solana::{SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool};
 use crabbybot_core::tools::web::{WebFetchTool, WebSearchTool};
+use crabbybot_core::bus::MessageBus;
 use crabbybot_core::tools::ToolRegistry;
 use crabbybot_core::gateway::AgentBridge;
 #[cfg(feature = "telegram")]
 use crabbybot_core::gateway::channels::telegram::TelegramTransport;
 #[cfg(feature = "discord")]
 use crabbybot_core::gateway::channels::discord::DiscordTransport;
+use crabbybot_core::service::pumpfun_stream::PumpFunStream;
 
 #[derive(Parser)]
 #[command(
@@ -169,6 +172,7 @@ fn setup_agent(
     config: &Config,
     model_override: Option<&str>,
     cron: Option<Arc<tokio::sync::Mutex<CronService>>>,
+    bus: Arc<MessageBus>,
     default_channel: &str,
     default_chat_id: &str,
 ) -> Result<(AgentLoop, PathBuf)> {
@@ -259,6 +263,7 @@ fn setup_agent(
         &config.tools.solana_rpc_url,
         config.tools.solana_private_key.clone(),
     )));
+    tools.register(Box::new(DiscoveryTool::new(bus)));
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),
@@ -276,6 +281,38 @@ fn setup_agent(
 // ── Bot Command ─────────────────────────────────────────────────────
 
 async fn cmd_bot() -> Result<()> {
+    // 0. Ensure singleton execution via lock file to avoid Telegram session conflicts.
+    let config_dir = Config::config_dir();
+    let lock_path = config_dir.join("bot.lock");
+    
+    // Ensure config directory exists
+    if !config_dir.exists() {
+        std::fs::create_dir_all(&config_dir)?;
+    }
+
+    // Try to create the lock file. If it already exists, another instance might be running.
+    // NOTE: This is a simple advisory lock. A crash might leave the file behind.
+    // A more robust solution would check the PID inside, but for a private bot, 
+    // this covers the 90% case of forgotten terminal windows.
+    if lock_path.exists() {
+        anyhow::bail!(
+            "\n  \x1b[31m❌ Another instance of crabbybot is already running!\x1b[0m\n\
+             \n     If you are sure it is not running, delete this file:\n\
+             \n     {}\n",
+            lock_path.display()
+        );
+    }
+    std::fs::write(&lock_path, std::process::id().to_string())?;
+
+    // Create a RAII guard to delete the lock file on exit.
+    struct LockGuard(std::path::PathBuf);
+    impl Drop for LockGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+    let _guard = LockGuard(lock_path.clone());
+
     let config = Config::load()?;
     validate_config(&config)?;
 
@@ -294,13 +331,35 @@ async fn cmd_bot() -> Result<()> {
         .cloned()
         .unwrap_or_default();
 
-    let (agent, _workspace) = setup_agent(&config, None, Some(Arc::clone(&cron)), "telegram", &default_chat_id)?;
-
     let (bus, receivers) = crabbybot_core::bus::MessageBus::new(100);
     let bus_arc = Arc::new(bus);
 
-    let mut tasks = Vec::new();
+    let (agent, _workspace) = setup_agent(
+        &config,
+        None,
+        Some(Arc::clone(&cron)),
+        Arc::clone(&bus_arc),
+        "telegram",
+        &default_chat_id,
+    )?;
+
     let inbound_rx = receivers.inbound_rx;
+    let internal_rx = receivers.internal_rx;
+
+    let mut services = tokio::task::JoinSet::new();
+
+    println!("  🦀 crabbybot bot mode starting...");
+    println!(
+        "  Active channels: Telegram: {}, Discord: {}",
+        config.channels.telegram.as_ref().is_some_and(|c| c.enabled),
+        config.channels.discord.as_ref().is_some_and(|c| c.enabled)
+    );
+    {
+        let cron_locked = cron.lock().await;
+        println!("  Cron: {}", cron_locked.status());
+    }
+    println!("  Press Ctrl+C for graceful shutdown.");
+    println!("  ─────────────────────────────────────");
 
     // 1. Start transports FIRST so they register their outbound subscribers
     //    before the dispatch loop begins processing messages.
@@ -316,11 +375,11 @@ async fn cmd_bot() -> Result<()> {
                     bus_for_tel,
                     allow_from,
                 );
-                tasks.push(tokio::spawn(async move {
+                services.spawn(async move {
                     if let Err(e) = transport.run().await {
                         tracing::error!("Telegram transport failed: {}", e);
                     }
-                }));
+                });
             }
         }
     }
@@ -336,25 +395,25 @@ async fn cmd_bot() -> Result<()> {
                     bus_for_disc,
                     allow_from,
                 );
-                tasks.push(tokio::spawn(async move {
+                services.spawn(async move {
                     if let Err(e) = transport.run().await {
                         tracing::error!("Discord transport failed: {}", e);
                     }
-                }));
+                });
             }
         }
     }
 
-    if tasks.is_empty() {
+    if services.is_empty() {
         println!("  ⚠️ No bot channels enabled. Please check your config.");
         return Ok(());
     }
 
     // 2. Outbound Dispatcher — uses the shared subscriber map, no bus lock needed
     let subs = bus_arc.subscribers();
-    tasks.push(tokio::spawn(async move {
+    services.spawn(async move {
         crabbybot_core::bus::dispatch_outbound(subs, receivers.outbound_rx).await;
-    }));
+    });
 
     // 3. Agent Bridge Task — with CancellationToken for graceful shutdown
     let cancel = CancellationToken::new();
@@ -366,18 +425,18 @@ async fn cmd_bot() -> Result<()> {
         Arc::clone(&cron),
         workspace.clone(),
     );
-    tasks.push(tokio::spawn(async move {
+    services.spawn(async move {
         if let Err(e) = bridge.run(inbound_rx).await {
             tracing::error!("Agent bridge failed: {}", e);
         }
-    }));
+    });
 
     // 4. Cron Ticker — checks for due jobs every 30 seconds.
     {
         let cron_tick = Arc::clone(&cron);
         let bus_tick = Arc::clone(&bus_arc);
         let cancel_tick = cancel.clone();
-        tasks.push(tokio::spawn(async move {
+        services.spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
             loop {
                 tokio::select! {
@@ -410,32 +469,38 @@ async fn cmd_bot() -> Result<()> {
                 }
             }
             tracing::info!("Cron ticker stopped");
-        }));
+        });
     }
 
-    println!("  🦀 crabbybot bot mode starting...");
-    println!(
-        "  Active channels: Telegram: {}, Discord: {}",
-        config.channels.telegram.as_ref().map_or(false, |c| c.enabled),
-        config.channels.discord.as_ref().map_or(false, |c| c.enabled)
-    );
+    // 5. Pump.fun Stream — real-time token discovery (reactive)
     {
-        let cron_locked = cron.lock().await;
-        println!("  Cron: {}", cron_locked.status());
+        let bus_stream = Arc::clone(&bus_arc);
+        let stream_config = config.tools.pumpfun_stream.clone();
+        services.spawn(async move {
+            let stream = PumpFunStream::new(bus_stream, stream_config);
+            stream.run(internal_rx).await;
+        });
     }
-    println!("  Press Ctrl+C for graceful shutdown.");
-    println!("  ─────────────────────────────────────");
 
-    // Wait for Ctrl+C, then cancel the bridge gracefully.
+
+
+    // Wait for Ctrl+C, or for any critical service to exit unexpectedly.
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             println!("\n  ⏳ Shutting down gracefully...");
-            cancel.cancel();
         }
-        _ = async { futures::future::join_all(tasks).await } => {
-            // All tasks finished on their own.
+        res = services.join_next() => {
+            if let Some(Err(e)) = res {
+                tracing::error!("Critical service task panicked: {}", e);
+            } else {
+                tracing::warn!("A core service exited unexpectedly. Shutting down.");
+            }
         }
     }
+
+    cancel.cancel();
+    // Give services a moment to clean up before hard-exiting.
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), services.shutdown()).await;
 
     println!("  ✅ Shutdown complete.");
     Ok(())
@@ -450,7 +515,8 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
     let model = model_override
         .unwrap_or(&config.agents.defaults.model)
         .to_string();
-    let (mut agent, workspace) = setup_agent(&config, model_override, None, "cli", "direct")?;
+    let (bus, _receivers) = crabbybot_core::bus::MessageBus::new(10);
+    let (mut agent, workspace) = setup_agent(&config, model_override, None, Arc::new(bus), "cli", "direct")?;
 
     // Print header
     println!();
@@ -507,7 +573,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         }
 
         // Process message — pass None because CLI doesn't need a bus for typing events
-        print!("\n");
+        println!();
         match agent.process(input, session_key, None).await {
             Ok(response) => {
                 println!("  \x1b[32m{}\x1b[0m\n", response.content);

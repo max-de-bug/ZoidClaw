@@ -80,7 +80,7 @@ impl LlmProvider for FallbackProvider {
         for (i, (name, provider)) in self.providers.iter().enumerate() {
             let is_quarantined = {
                 let health = self.health.lock().unwrap();
-                health.get(name).map_or(false, |&last_err| now.duration_since(last_err) < QUARANTINE_DURATION)
+                health.get(name).is_some_and(|&last_err| now.duration_since(last_err) < QUARANTINE_DURATION)
             };
 
             if is_quarantined {

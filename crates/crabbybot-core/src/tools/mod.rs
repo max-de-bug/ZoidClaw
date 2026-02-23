@@ -5,6 +5,7 @@
 //! tools and dispatches tool calls by name.
 
 pub mod alpha_summary;
+pub mod discovery;
 pub mod filesystem;
 pub mod polymarket;
 pub mod pumpfun;
@@ -20,6 +21,8 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
 use tracing::{debug, error};
+
+use crate::provider::types::{ToolDefinition, ToolFunctionDef};
 
 /// Trait that all agent tools must implement.
 ///
@@ -44,6 +47,7 @@ pub trait Tool: Send + Sync {
 /// Dynamic registry for agent tools.
 ///
 /// Allows runtime registration and lookup of tools by name.
+#[derive(Default)]
 pub struct ToolRegistry {
     tools: HashMap<String, Box<dyn Tool>>,
 }
@@ -86,12 +90,12 @@ impl ToolRegistry {
     }
 
     /// Get all tool definitions in OpenAI function-calling format.
-    pub fn definitions(&self) -> Vec<crate::provider::types::ToolDefinition> {
+    pub fn definitions(&self) -> Vec<ToolDefinition> {
         self.tools
             .values()
-            .map(|tool| crate::provider::types::ToolDefinition {
+            .map(|tool| ToolDefinition {
                 def_type: "function".into(),
-                function: crate::provider::types::ToolFunctionDef {
+                function: ToolFunctionDef {
                     name: tool.name().into(),
                     description: tool.description().into(),
                     parameters: tool.parameters(),
@@ -113,12 +117,6 @@ impl ToolRegistry {
     /// Whether the registry is empty.
     pub fn is_empty(&self) -> bool {
         self.tools.is_empty()
-    }
-}
-
-impl Default for ToolRegistry {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

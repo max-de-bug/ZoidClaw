@@ -49,5 +49,6 @@ pub mod cron;
 pub mod gateway;
 pub mod heartbeat;
 pub mod provider;
+pub mod service;
 pub mod session;
 pub mod tools;
