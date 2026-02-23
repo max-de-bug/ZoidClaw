@@ -18,33 +18,34 @@
   </table>
 </div>
 
-**Meet Crabbybot:** an ultra-lightweight, ZeroClaw-style AI assistant that deploys in seconds. Written in pure Rust with a tiny ~5MB footprint, it delivers blazing-fast local execution, seamless Telegram integration, and a commanding edge with native Pump.fun & Solana tools.
+**Meet Crabbybot:** an ultra-lightweight, OpenClaw-style AI assistant that deploys in seconds. Written in pure Rust with a tiny ~5MB footprint, it delivers blazing-fast local execution, seamless Telegram integration, and a commanding edge with native Pump.fun & Solana tools.
 
 ## 🚀 Key Features
 
-- **Multi-Channel Support**: Interact via CLI, **Telegram**, or **Discord**.
-- **Agent Bridge**: Decoupled architecture using a concurrent `MessageBus`.
-- **Tool-Use (Function Calling)**: Capability to read/write files, execute shell commands, and fetch web content.
-- **Cron Jobs**: Schedule automated AI tasks using standard cron syntax or intervals.
-- **Session Persistence**: Persistent conversation threads scoped to users and channels.
-- **Zero Runtime Dependencies**: Just a single binary and a config file.
+- **⚡ Crypto Native**: First-class support for **Solana** and **Pump.fun**, including real-time alerts, rug detection, and alpha scoring.
+- **💬 Multi-Channel**: Native bridges for **Telegram**, **Discord**, and a powerful **CLI**.
+- **🎯 Shortcut Commands**: High-velocity slash commands (`/portfolio`, `/alpha`, `/buy`) for instant on-chain interaction.
+- **⏰ Proactive Autonomy**: Integrated cron engine for scheduling recurring AI research and monitoring tasks.
+- **🛠️ Extensible Tool-Use**: Native capability to execute shell commands, manage files, and fetch live web data.
+- **🔐 Session Persistence**: Persistent conversation threads stored locally and securely.
+- **🦀 Pure Rust Core**: Zero runtime dependencies and sub-millisecond local routing.
 
 ## 🏗️ Architecture
 
-Crabbybot uses an event-driven architecture centered around an asynchronous message bus.
+Decoupled, event-driven, and concurrent.
 
 ```mermaid
 graph TD
     User([User])
     subgraph "Transports"
-        CLI[CLI Transport]
-        TG[Telegram Transport]
-        DC[Discord Transport]
+        CLI[CLI]
+        TG[Telegram]
+        DC[Discord]
     end
-    Bus{Concurrent Message Bus}
+    Bus{Message Bus}
     Bridge[Agent Bridge]
     Loop[Agent Loop]
-    LLM(LLM Provider)
+    LLM(LLM Grid)
     Tools[Tool Registry]
 
     User <--> CLI
@@ -61,27 +62,19 @@ graph TD
     Loop <--> Tools
 ```
 
-## 🛠️ Getting Started
+## 🛠️ Deployment
 
 ### Prerequisites
+- [Rust Toolchain](https://rustup.rs/)
 
-- [Rust Toolchain](https://rustup.rs/) (Stable)
-
-### Installation
-
-1.  **Clone the repository**:
+### Build
+1. **Clone & Compile**:
     ```bash
     git clone https://github.com/max-de-bug/crabbybot.git
     cd crabbybot
-    ```
-
-2.  **Build**:
-    ```bash
     cargo build --release
     ```
-
-3.  **Onboard**:
-    Generate a default configuration:
+2. **Onboard**:
     ```bash
     ./target/release/crabbybot onboard
     ```
@@ -154,4 +147,4 @@ crabbybot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summ
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
-*Built with 🦀 by Connor.*
+*Built with 🦀 for the Solana Ecosystem.*
