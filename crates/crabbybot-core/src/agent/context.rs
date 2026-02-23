@@ -123,7 +123,7 @@ impl<'a> ContextBuilder<'a> {
 
 You are **crabbybot** 🦀, an ultra-lightweight personal AI assistant.
 
-## Environment
+## Environment (LIVE STATUS - ALWAYS TRUST THIS OVER MEMORY)
 - Workspace: `{}`
 - Channel: `{}`
 - Chat ID: `{}`

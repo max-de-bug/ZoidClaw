@@ -59,6 +59,15 @@ impl Tool for DiscoveryTool {
                 let Some(id) = chat_id else {
                      return "❌ Error: 'chat_id' is required to start the stream. Check the Identity section for your Chat ID.".into();
                 };
+
+                // Check if already running
+                {
+                    let state = self.state.lock().await;
+                    if state.worker.is_some() {
+                        return format!("📡 **Discovery Stream is ALREADY ACTIVE.** Alerts are currently being sent to chat `{}`.", state.active_chat_id.as_deref().unwrap_or("unknown"));
+                    }
+                }
+
                 self.bus.publish_internal(InternalMessage::StreamControl {
                     action: StreamAction::Start,
                     chat_id: id.clone(),
@@ -75,10 +84,11 @@ impl Tool for DiscoveryTool {
             }
             "status" => {
                 let state = self.state.lock().await;
-                if let Some(ref id) = state.active_chat_id {
-                    format!("📡 **Discovery Stream is ACTIVE** for chat `{}`. You are currently receiving real-time Pump.fun alerts.", id)
+                if state.worker.is_some() {
+                    let id = state.active_chat_id.as_deref().unwrap_or("unknown");
+                    format!("📡 **Discovery Stream Status: ACTIVE**\nNotifications are currently being sent to chat `{}`.", id)
                 } else {
-                    "🌑 **Discovery Stream is INACTIVE.** Use `start discovery` to begin receiving live alerts.".to_string()
+                    "🌑 **Discovery Stream Status: INACTIVE**\nUse `start discovery` to begin receiving live Pump.fun alerts.".to_string()
                 }
             }
             _ => "❌ Error: Invalid action. Use 'start', 'stop', or 'status'.".into(),

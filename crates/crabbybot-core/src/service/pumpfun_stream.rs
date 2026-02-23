@@ -157,8 +157,8 @@ impl PumpFunStream {
             info!("Stopping Pump.fun real-time stream");
             token.cancel();
             let _ = handle.await;
-            state.active_chat_id = None;
         }
+        state.active_chat_id = None;
     }
 }
 
