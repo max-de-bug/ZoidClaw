@@ -39,7 +39,7 @@ use crabbybot_core::gateway::AgentBridge;
 use crabbybot_core::gateway::channels::telegram::TelegramTransport;
 #[cfg(feature = "discord")]
 use crabbybot_core::gateway::channels::discord::DiscordTransport;
-use crabbybot_core::service::pumpfun_stream::PumpFunStream;
+
 
 #[derive(Parser)]
 #[command(
@@ -173,6 +173,7 @@ fn setup_agent(
     model_override: Option<&str>,
     cron: Option<Arc<tokio::sync::Mutex<CronService>>>,
     bus: Arc<MessageBus>,
+    discovery_state: Arc<tokio::sync::Mutex<crabbybot_core::service::pumpfun_stream::StreamState>>,
     default_channel: &str,
     default_chat_id: &str,
 ) -> Result<(AgentLoop, PathBuf)> {
@@ -263,7 +264,7 @@ fn setup_agent(
         &config.tools.solana_rpc_url,
         config.tools.solana_private_key.clone(),
     )));
-    tools.register(Box::new(DiscoveryTool::new(bus)));
+    tools.register(Box::new(DiscoveryTool::new(bus, discovery_state.clone())));
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),
@@ -271,10 +272,10 @@ fn setup_agent(
         temperature: config.agents.defaults.temperature,
         max_iterations: config.agents.defaults.max_tool_iterations,
         workspace: workspace.clone(),
-        max_context_tokens: 30_000,
+        max_context_tokens: 10_000,
     };
 
-    let agent = AgentLoop::new(Box::new(provider), tools, agent_config);
+    let agent = AgentLoop::new(Box::new(provider), tools, agent_config, discovery_state);
     Ok((agent, workspace))
 }
 
@@ -334,11 +335,17 @@ async fn cmd_bot() -> Result<()> {
     let (bus, receivers) = crabbybot_core::bus::MessageBus::new(100);
     let bus_arc = Arc::new(bus);
 
-    let (agent, _workspace) = setup_agent(
+    // 0.5 Pre-initialize services that the agent needs to know about
+    let stream_config = config.tools.pumpfun_stream.clone();
+    let stream = crabbybot_core::service::pumpfun_stream::PumpFunStream::new(Arc::clone(&bus_arc), stream_config);
+    let discovery_state = stream.state();
+
+    let (agent, workspace) = setup_agent(
         &config,
         None,
         Some(Arc::clone(&cron)),
         Arc::clone(&bus_arc),
+        discovery_state,
         "telegram",
         &default_chat_id,
     )?;
@@ -474,10 +481,7 @@ async fn cmd_bot() -> Result<()> {
 
     // 5. Pump.fun Stream — real-time token discovery (reactive)
     {
-        let bus_stream = Arc::clone(&bus_arc);
-        let stream_config = config.tools.pumpfun_stream.clone();
         services.spawn(async move {
-            let stream = PumpFunStream::new(bus_stream, stream_config);
             stream.run(internal_rx).await;
         });
     }
@@ -516,7 +520,19 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         .unwrap_or(&config.agents.defaults.model)
         .to_string();
     let (bus, _receivers) = crabbybot_core::bus::MessageBus::new(10);
-    let (mut agent, workspace) = setup_agent(&config, model_override, None, Arc::new(bus), "cli", "direct")?;
+    let discovery_state = Arc::new(tokio::sync::Mutex::new(crabbybot_core::service::pumpfun_stream::StreamState {
+        worker: None,
+        active_chat_id: None,
+    }));
+    let (mut agent, workspace) = setup_agent(
+        &config, 
+        model_override, 
+        None, 
+        Arc::new(bus), 
+        discovery_state,
+        "cli", 
+        "direct"
+    )?;
 
     // Print header
     println!();

@@ -97,16 +97,22 @@ impl LlmProvider for FallbackProvider {
                 Ok(res) => return Ok(res),
                 Err(e) => {
                     let err_str = e.to_string();
-                    if err_str.contains("429")
+                    let is_failover = err_str.contains("429")
                         || err_str.contains("quota")
                         || err_str.contains("rate limit")
                         || err_str.contains("404")
                         || err_str.contains("tool call validation")
-                    {
+                        // Auth errors: the key is invalid/expired — skip to next provider
+                        || err_str.contains("401")
+                        || err_str.contains("403")
+                        || err_str.contains("Unauthorized")
+                        || err_str.contains("User not found");
+
+                    if is_failover {
                         warn!(
                             provider = %name,
                             error = %err_str,
-                            "Provider failed with retryable error, entering quarantine"
+                            "Provider failed with failover-eligible error, entering quarantine"
                         );
                         {
                             let mut health = self.health.lock().unwrap();

@@ -14,14 +14,27 @@ pub struct ContextBuilder<'a> {
     workspace: &'a Path,
     memory: &'a MemoryStore,
     skills: &'a SkillsLoader,
+    channel: String,
+    chat_id: String,
+    service_status: String,
 }
 
 impl<'a> ContextBuilder<'a> {
-    pub fn new(workspace: &'a Path, memory: &'a MemoryStore, skills: &'a SkillsLoader) -> Self {
+    pub fn new(
+        workspace: &'a Path,
+        memory: &'a MemoryStore,
+        skills: &'a SkillsLoader,
+        channel: &str,
+        chat_id: &str,
+        service_status: &str,
+    ) -> Self {
         Self {
             workspace,
             memory,
             skills,
+            channel: channel.to_string(),
+            chat_id: chat_id.to_string(),
+            service_status: service_status.to_string(),
         }
     }
 
@@ -112,6 +125,9 @@ You are **crabbybot** 🦀, an ultra-lightweight personal AI assistant.
 
 ## Environment
 - Workspace: `{}`
+- Channel: `{}`
+- Chat ID: `{}`
+- Service Status: {}
 - Current time: {}
 - Platform: {} ({})
 
@@ -129,6 +145,9 @@ You have access to tools for:
 - If unsure, ask for clarification.
 - Prefer simple, correct solutions over clever ones."#,
             self.workspace.display(),
+            self.channel,
+            self.chat_id,
+            self.service_status,
             timestamp,
             os,
             arch,

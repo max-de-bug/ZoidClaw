@@ -1,18 +1,21 @@
 use super::Tool;
 use crate::bus::events::{InternalMessage, StreamAction};
 use crate::bus::MessageBus;
+use crate::service::pumpfun_stream::StreamState;
 use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub struct DiscoveryTool {
     bus: Arc<MessageBus>,
+    state: Arc<Mutex<StreamState>>,
 }
 
 impl DiscoveryTool {
-    pub fn new(bus: Arc<MessageBus>) -> Self {
-        Self { bus }
+    pub fn new(bus: Arc<MessageBus>, state: Arc<Mutex<StreamState>>) -> Self {
+        Self { bus, state }
     }
 }
 
@@ -25,7 +28,7 @@ impl Tool for DiscoveryTool {
     fn description(&self) -> &str {
         "Manage the real-time token discovery stream. \
          Use 'start' to begin receiving live Pump.fun token alerts, \
-         and 'stop' to pause the stream."
+         'stop' to pause the stream, and 'status' to check if it is currently active."
     }
 
     fn parameters(&self) -> Value {
@@ -34,41 +37,51 @@ impl Tool for DiscoveryTool {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["start", "stop"],
+                    "enum": ["start", "stop", "status"],
                     "description": "What to do with the stream."
                 },
                 "chat_id": {
                     "type": "string",
-                    "description": "The chat ID where notifications should be sent (usually provided in context)."
+                    "description": "The telegram chat ID or 'cli:direct'. Look for 'Chat ID' in the Identity section of the system prompt."
                 }
             },
-            "required": ["action", "chat_id"]
+            "required": ["action"]
         })
     }
 
     async fn execute(&self, args: HashMap<String, Value>) -> String {
-        let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("stop");
-        let chat_id = match args.get("chat_id").and_then(|v| v.as_str()) {
-            Some(id) => id.to_string(),
-            None => return "❌ Error: 'chat_id' is required to target the stream.".into(),
-        };
+        let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("status");
+        
+        let chat_id = args.get("chat_id").and_then(|v| v.as_str()).map(|s| s.to_string());
 
         match action {
             "start" => {
+                let Some(id) = chat_id else {
+                     return "❌ Error: 'chat_id' is required to start the stream. Check the Identity section for your Chat ID.".into();
+                };
                 self.bus.publish_internal(InternalMessage::StreamControl {
                     action: StreamAction::Start,
-                    chat_id: chat_id.clone(),
+                    chat_id: id.clone(),
                 }).await;
-                "📡 **Discovery Stream Started!**\nReal-time notifications for new Pump.fun tokens will now be sent to this chat.".to_string()
+                format!("📡 **Discovery Stream Started!**\nReal-time notifications for new Pump.fun tokens will now be sent to chat `{}`.", id)
             }
             "stop" => {
+                let id = chat_id.unwrap_or_default();
                 self.bus.publish_internal(InternalMessage::StreamControl {
                     action: StreamAction::Stop,
-                    chat_id: chat_id.clone(),
+                    chat_id: id,
                 }).await;
                 "🛑 **Discovery Stream Stopped.**\nNotifications have been paused.".to_string()
             }
-            _ => "❌ Error: Invalid action. Use 'start' or 'stop'.".into(),
+            "status" => {
+                let state = self.state.lock().await;
+                if let Some(ref id) = state.active_chat_id {
+                    format!("📡 **Discovery Stream is ACTIVE** for chat `{}`. You are currently receiving real-time Pump.fun alerts.", id)
+                } else {
+                    "🌑 **Discovery Stream is INACTIVE.** Use `start discovery` to begin receiving live alerts.".to_string()
+                }
+            }
+            _ => "❌ Error: Invalid action. Use 'start', 'stop', or 'status'.".into(),
         }
     }
 }

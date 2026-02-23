@@ -15,6 +15,7 @@ pub mod skills;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use futures::future;
 use tracing::{debug, info, warn};
@@ -24,6 +25,7 @@ use crate::bus::MessageBus;
 use crate::provider::types::{ChatMessage, FunctionCall, ToolCallMessage};
 use crate::provider::LlmProvider;
 use crate::session::SessionManager;
+use crate::service::pumpfun_stream::StreamState;
 use crate::tools::ToolRegistry;
 use context::ContextBuilder;
 use memory::MemoryStore;
@@ -101,6 +103,7 @@ pub struct AgentLoop {
     skills: SkillsLoader,
     sessions: SessionManager,
     config: AgentConfig,
+    discovery_state: Arc<Mutex<StreamState>>,
 }
 
 impl AgentLoop {
@@ -108,6 +111,7 @@ impl AgentLoop {
         provider: Box<dyn LlmProvider>,
         tools: ToolRegistry,
         config: AgentConfig,
+        discovery_state: Arc<Mutex<StreamState>>,
     ) -> Self {
         let memory = MemoryStore::new(&config.workspace);
         let skills = SkillsLoader::new(&config.workspace, None);
@@ -120,6 +124,7 @@ impl AgentLoop {
             skills,
             sessions,
             config,
+            discovery_state,
         }
     }
 
@@ -165,7 +170,23 @@ impl AgentLoop {
         session.add_message("user", content);
 
         // ── 3. Build initial messages ─────────────────────────────────
-        let ctx = ContextBuilder::new(&self.config.workspace, &self.memory, &self.skills);
+        let service_status = {
+            let state = self.discovery_state.lock().await;
+            if let Some(ref id) = state.active_chat_id {
+                format!("Pump.fun Discovery: ACTIVE (sending to {})", id)
+            } else {
+                "Pump.fun Discovery: INACTIVE".to_string()
+            }
+        };
+
+        let ctx = ContextBuilder::new(
+            &self.config.workspace,
+            &self.memory,
+            &self.skills,
+            &channel,
+            &chat_id,
+            &service_status,
+        );
         let mut messages = ctx.build_messages(&history, content, &[]);
 
         // ── 4. Tool definitions ───────────────────────────────────────

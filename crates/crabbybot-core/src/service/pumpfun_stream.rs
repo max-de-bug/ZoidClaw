@@ -14,12 +14,12 @@ use crate::config::PumpFunStreamConfig;
 pub struct PumpFunStream {
     bus: Arc<MessageBus>,
     config: PumpFunStreamConfig,
-    state: Mutex<StreamState>,
+    state: Arc<Mutex<StreamState>>,
 }
 
-struct StreamState {
-    worker: Option<(JoinHandle<()>, CancellationToken)>,
-    active_chat_id: Option<String>,
+pub struct StreamState {
+    pub worker: Option<(JoinHandle<()>, CancellationToken)>,
+    pub active_chat_id: Option<String>,
 }
 
 impl PumpFunStream {
@@ -27,11 +27,16 @@ impl PumpFunStream {
         Self {
             bus,
             config,
-            state: Mutex::new(StreamState {
+            state: Arc::new(Mutex::new(StreamState {
                 worker: None,
                 active_chat_id: None,
-            }),
+            })),
         }
+    }
+
+    /// Get a handle to the shared stream state.
+    pub fn state(&self) -> Arc<Mutex<StreamState>> {
+        Arc::clone(&self.state)
     }
 
     /// Run the control loop for the stream service.
@@ -90,6 +95,7 @@ impl PumpFunStream {
                                 info!("Connected to PumpPortal");
 
                                 let subscribe_msg = json!({ "method": "subscribeNewToken" });
+                                info!("Sending subscription request to PumpPortal: {}", subscribe_msg);
                                 let text_bytes = tokio_tungstenite::tungstenite::Utf8Bytes::from(subscribe_msg.to_string());
                                 
                                 if let Err(e) = ws_stream.send(Message::Text(text_bytes)).await {
@@ -97,6 +103,7 @@ impl PumpFunStream {
                                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                                     continue;
                                 }
+                                info!("Subscription request sent successfully.");
 
                                 while let Some(msg) = ws_stream.next().await {
                                     tokio::select! {
@@ -105,9 +112,13 @@ impl PumpFunStream {
                                             match msg_val {
                                                 Ok(Message::Text(text)) => {
                                                     let text_str = text.to_string();
+                                                    tracing::debug!("Received WebSocket message: {}", text_str);
                                                     if let Ok(event) = serde_json::from_str::<serde_json::Value>(&text_str) {
                                                         if event["mint"].is_string() {
+                                                            info!("New token detected: {} ({})", event["name"].as_str().unwrap_or("?"), event["mint"].as_str().unwrap_or("?"));
                                                             handle_token_event(&bus, &worker_chat_id, event).await;
+                                                        } else {
+                                                            tracing::debug!("Received non-token message or heartbeat: {}", text_str);
                                                         }
                                                     }
                                                 }
