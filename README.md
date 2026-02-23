@@ -18,7 +18,7 @@
   </table>
 </div>
 
-**Meet Crabbybot:** an ultra-lightweight, OpenClaw-style AI assistant that deploys in seconds. Written in pure Rust with a tiny ~5MB footprint, it delivers blazing-fast local execution, seamless Telegram integration, and a commanding edge with native Pump.fun & Solana tools.
+**Crabbybot** is  a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time Pump.fun alerts, automated rug security, and precision trading to your Telegram or CLI.
 
 ## 🚀 Key Features
 
