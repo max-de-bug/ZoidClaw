@@ -473,7 +473,8 @@ mod tests {
         let tmp = tempdir();
         let provider = FakeProvider::new(vec![FakeProvider::final_response("Hello!")]);
         let tools = ToolRegistry::new();
-        let mut agent = AgentLoop::new(Box::new(provider), tools, make_config(tmp.clone()));
+        let discovery_state = Arc::new(Mutex::new(StreamState { worker: None, active_chat_id: None }));
+        let mut agent = AgentLoop::new(Box::new(provider), tools, make_config(tmp.clone()), discovery_state);
 
         let reply = agent.process("Hi", "cli:direct", None).await.unwrap();
         assert_eq!(reply.content, "Hello!");
@@ -506,7 +507,8 @@ mod tests {
         registry.register(Box::new(CounterTool { counter: Arc::clone(&counter_a), name: "counter_a".into() }));
         registry.register(Box::new(CounterTool { counter: Arc::clone(&counter_b), name: "counter_b".into() }));
 
-        let mut agent = AgentLoop::new(Box::new(provider), registry, make_config(tmp));
+        let discovery_state = Arc::new(Mutex::new(StreamState { worker: None, active_chat_id: None }));
+        let mut agent = AgentLoop::new(Box::new(provider), registry, make_config(tmp), discovery_state);
         let reply = agent.process("run both", "cli:direct", None).await.unwrap();
 
         assert_eq!(reply.content, "done");
@@ -533,7 +535,8 @@ mod tests {
         registry.register(Box::new(CounterTool { counter: Arc::clone(&counter), name: "counter_a".into() }));
 
         let config = AgentConfig { max_iterations: 3, ..make_config(tmp) };
-        let mut agent = AgentLoop::new(Box::new(provider), registry, config);
+        let discovery_state = Arc::new(Mutex::new(StreamState { worker: None, active_chat_id: None }));
+        let mut agent = AgentLoop::new(Box::new(provider), registry, config, discovery_state);
 
         let err = agent.process("loop forever", "cli:direct", None).await.unwrap_err();
         assert!(

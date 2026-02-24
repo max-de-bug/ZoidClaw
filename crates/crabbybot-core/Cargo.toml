@@ -22,7 +22,9 @@ regex = { workspace = true }
 async-trait = { workspace = true }
 futures = { workspace = true }
 tokio-util = { workspace = true }
-polymarket-rust-sdk = { workspace = true }
+
+alloy = { workspace = true }
+rust_decimal = { workspace = true }
 solana-transaction = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-signature = { workspace = true }

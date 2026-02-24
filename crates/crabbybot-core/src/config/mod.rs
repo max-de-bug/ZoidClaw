@@ -44,6 +44,10 @@ impl Config {
                     tracing::info!("Using Solana private key from environment variable");
                     config.tools.solana_private_key = Some(key);
                 }
+                if let Ok(key) = std::env::var("POLYMARKET_PRIVATE_KEY") {
+                    tracing::info!("Using Polymarket private key from environment variable");
+                    config.tools.polymarket.private_key = Some(key);
+                }
 
                 return Ok(config);
             }
@@ -54,6 +58,10 @@ impl Config {
         if let Ok(key) = std::env::var("SOLANA_PRIVATE_KEY") {
             tracing::info!("Using Solana private key from environment variable");
             config.tools.solana_private_key = Some(key);
+        }
+        if let Ok(key) = std::env::var("POLYMARKET_PRIVATE_KEY") {
+            tracing::info!("Using Polymarket private key from environment variable");
+            config.tools.polymarket.private_key = Some(key);
         }
         Ok(config)
     }
@@ -272,6 +280,7 @@ pub struct ToolsConfig {
     pub solana_rpc_url: String,
     pub solana_private_key: Option<String>,
     pub pumpfun_stream: PumpFunStreamConfig,
+    pub polymarket: PolymarketConfig,
 }
 
 impl Default for ToolsConfig {
@@ -283,6 +292,7 @@ impl Default for ToolsConfig {
             solana_rpc_url: "https://api.mainnet-beta.solana.com".into(),
             solana_private_key: None,
             pumpfun_stream: PumpFunStreamConfig::default(),
+            polymarket: PolymarketConfig::default(),
         }
     }
 }
@@ -292,6 +302,27 @@ impl Default for ToolsConfig {
 pub struct PumpFunStreamConfig {
     pub enabled: bool,
     pub chat_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PolymarketConfig {
+    /// Polygon wallet private key (hex with 0x prefix).
+    pub private_key: Option<String>,
+    /// Signature type: "proxy" (default), "eoa", or "gnosis-safe".
+    pub signature_type: String,
+    /// Polygon JSON-RPC URL.
+    pub rpc_url: String,
+}
+
+impl Default for PolymarketConfig {
+    fn default() -> Self {
+        Self {
+            private_key: None,
+            signature_type: "proxy".into(),
+            rpc_url: "https://polygon.drpc.org".into(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

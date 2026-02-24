@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/crabbybot-core", "crates/crabbybot-cli"]
+members = ["crates/crabbybot-core", "crates/crabbybot-cli", "polymarket-cli-0.1.4"]
 resolver = "2"
 
 [workspace.package]
@@ -11,7 +11,7 @@ description = "An ultra-lightweight personal AI assistant written in Rust"
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["full"] }
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls"] }
+reqwest = { version = "0.12", features = ["json", "stream", "native-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
@@ -29,7 +29,9 @@ futures = "0.3"
 tokio-util = { version = "0.7", features = ["rt"] }
 teloxide = { version = "0.13", features = ["macros"] }
 serenity = { version = "0.12", default-features = false, features = ["client", "gateway", "rustls_backend", "model"] }
-polymarket-rust-sdk = "0.2.1"
+polymarket-client-sdk = { version = "0.4", features = ["gamma", "data", "bridge", "clob", "ctf"] }
+alloy = { version = "1.6", default-features = false, features = ["providers", "sol-types", "contract", "reqwest", "reqwest-rustls-tls", "signer-local", "signers"] }
+rust_decimal = "1"
 solana-transaction = { version = "4.0", features = ["serde"] }
 solana-pubkey = { version = "4.1", features = ["serde"] }
 solana-signature = { version = "3.3", features = ["serde"] }
@@ -39,3 +41,6 @@ bs58 = "0.5"
 base64 = "0.22"
 tokio-tungstenite = { version = "0.26", features = ["rustls-tls-webpki-roots"] }
 bincode = "1.3"
+
+[patch.crates-io]
+polymarket-client-sdk = { path = "polymarket-client-sdk" }

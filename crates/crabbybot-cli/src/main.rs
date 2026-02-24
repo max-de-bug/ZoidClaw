@@ -22,6 +22,35 @@ use crabbybot_core::provider::LlmProvider;
 use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use crabbybot_core::tools::polymarket::{PolymarketTrendingTool, PolymarketSearchTool, PolymarketMarketTool};
+use crabbybot_core::tools::polymarket_approve::PolymarketApproveTool;
+use crabbybot_core::tools::polymarket_bridge::PolymarketBridgeTool;
+use crabbybot_core::tools::polymarket_comments::PolymarketCommentsTool;
+use crabbybot_core::tools::polymarket_ctf::{PolymarketCtfSplitTool, PolymarketCtfMergeTool, PolymarketCtfRedeemTool};
+use crabbybot_core::tools::polymarket_data::{
+    PolymarketPositionsTool, PolymarketLeaderboardTool, PolymarketClosedPositionsTool,
+    PolymarketTradesTool, PolymarketActivityTool, PolymarketHoldersTool,
+    PolymarketOpenInterestTool, PolymarketVolumeTool, PolymarketBuilderLeaderboardTool,
+};
+use crabbybot_core::tools::polymarket_events::{PolymarketEventsTool, PolymarketEventDetailTool};
+use crabbybot_core::tools::polymarket_orderbook::{
+    PolymarketOrderbookTool, PolymarketLastTradeTool, PolymarketClobMarketTool,
+    PolymarketTickSizeTool,
+};
+use crabbybot_core::tools::polymarket_orders::{
+    PolymarketMyOrdersTool, PolymarketCancelOrderTool, PolymarketBalanceTool,
+    PolymarketRewardsTool, PolymarketNotificationsTool, PolymarketApiKeysTool,
+    PolymarketAccountStatusTool,
+};
+use crabbybot_core::tools::polymarket_prices::{PolymarketPriceTool, PolymarketPriceHistoryTool};
+use crabbybot_core::tools::polymarket_profiles::PolymarketProfileTool;
+use crabbybot_core::tools::polymarket_series::PolymarketSeriesTool;
+use crabbybot_core::tools::polymarket_sports::PolymarketSportsTool;
+use crabbybot_core::tools::polymarket_status::PolymarketStatusTool;
+use crabbybot_core::tools::polymarket_tags::PolymarketTagsTool;
+use crabbybot_core::tools::polymarket_trade::{PolymarketCreateOrderTool, PolymarketMarketOrderTool};
+use crabbybot_core::tools::polymarket_wallet::{
+    PolymarketWalletCreateTool, PolymarketWalletImportTool, PolymarketWalletTool,
+};
 use crabbybot_core::tools::pumpfun::{PumpFunTokenTool, PumpFunSearchTool};
 use crabbybot_core::tools::alpha_summary::AlphaSummaryTool;
 use crabbybot_core::tools::pumpfun_buy::PumpFunBuyTool;
@@ -250,10 +279,57 @@ fn setup_agent(
     tools.register(Box::new(PumpFunTokenTool::new(client.clone())));
     tools.register(Box::new(PumpFunSearchTool::new(client.clone())));
 
-    // Polymarket prediction-market tools
+    // Polymarket read-only tools (markets, events, prices, data)
     tools.register(Box::new(PolymarketTrendingTool::new()));
     tools.register(Box::new(PolymarketSearchTool::new()));
     tools.register(Box::new(PolymarketMarketTool::new()));
+    tools.register(Box::new(PolymarketEventsTool::new()));
+    tools.register(Box::new(PolymarketEventDetailTool::new()));
+    tools.register(Box::new(PolymarketPriceTool::new()));
+    tools.register(Box::new(PolymarketPriceHistoryTool::new()));
+    tools.register(Box::new(PolymarketOrderbookTool::new()));
+    tools.register(Box::new(PolymarketLastTradeTool::new()));
+    tools.register(Box::new(PolymarketClobMarketTool::new()));
+    tools.register(Box::new(PolymarketTickSizeTool::new()));
+    tools.register(Box::new(PolymarketPositionsTool::new()));
+    tools.register(Box::new(PolymarketLeaderboardTool::new()));
+    tools.register(Box::new(PolymarketClosedPositionsTool::new()));
+    tools.register(Box::new(PolymarketTradesTool::new()));
+    tools.register(Box::new(PolymarketActivityTool::new()));
+    tools.register(Box::new(PolymarketHoldersTool::new()));
+    tools.register(Box::new(PolymarketOpenInterestTool::new()));
+    tools.register(Box::new(PolymarketVolumeTool::new()));
+    tools.register(Box::new(PolymarketBuilderLeaderboardTool::new()));
+    tools.register(Box::new(PolymarketBridgeTool::new()));
+    tools.register(Box::new(PolymarketStatusTool::new()));
+
+    // Polymarket Gamma browsing (tags, series, comments, profiles, sports)
+    tools.register(Box::new(PolymarketTagsTool::new()));
+    tools.register(Box::new(PolymarketSeriesTool::new()));
+    tools.register(Box::new(PolymarketCommentsTool::new()));
+    tools.register(Box::new(PolymarketProfileTool::new()));
+    tools.register(Box::new(PolymarketSportsTool::new()));
+
+    // Polymarket authenticated trading tools (need POLYMARKET_PRIVATE_KEY)
+    let pm = config.tools.polymarket.clone();
+    tools.register(Box::new(PolymarketCreateOrderTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketMarketOrderTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketMyOrdersTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCancelOrderTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketBalanceTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketWalletTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketWalletCreateTool::new()));
+    tools.register(Box::new(PolymarketWalletImportTool::new()));
+    tools.register(Box::new(PolymarketRewardsTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketNotificationsTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketApiKeysTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketAccountStatusTool::new(pm.clone())));
+
+    // Polymarket on-chain tools (need wallet + MATIC)
+    tools.register(Box::new(PolymarketCtfSplitTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCtfMergeTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCtfRedeemTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketApproveTool::new(pm)));
 
     // Token Analysis
     tools.register(Box::new(RugCheckTool::new(client.clone())));

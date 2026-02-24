@@ -1,38 +1,25 @@
-//! Polymarket prediction-market tools.
+//! Polymarket prediction-market tools (read-only).
 //!
 //! Provides real-time access to Polymarket prediction markets via direct
-//! REST API calls to the Gamma API and CLOB API. Uses the SDK's type
-//! definitions for deserialization, but bypasses the SDK's internal HTTP
-//! client to use our own `reqwest` client with `rustls-tls` (bundled
-//! Mozilla CA roots), which avoids TLS trust issues on Windows Schannel.
+//! REST API calls to the Gamma API and CLOB API. Uses `rustls-tls` with
+//! bundled Mozilla CA roots to avoid TLS trust issues on Windows Schannel.
 //!
-//! ## Architecture
+//! ## Tools
 //!
-//! All tools share a common pattern:
-//! 1. Parse user arguments from JSON
-//! 2. Create a `reqwest::Client` with `rustls` TLS backend
-//! 3. Call the Polymarket REST API directly
-//! 4. Deserialize into SDK types (`GammaMarket`, `SimplifiedMarket`, etc.)
-//! 5. Format the response into a rich, human-readable string
-//!
-//! ## Usage in Telegram
-//!
-//! Just ask naturally:
-//! - "What are the trending prediction markets?"
-//! - "Search Polymarket for Bitcoin"
-//! - "Get details on Polymarket condition 0x123..."
+//! - `polymarket_trending` — Top trending markets (with optional tag filter)
+//! - `polymarket_search` — Search markets by keyword
+//! - `polymarket_market` — Detailed market info by condition ID or slug
 
 use async_trait::async_trait;
-use polymarket_sdk::{OrderBook, SimplifiedMarket};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::net::SocketAddr;
-use std::str::FromStr;
-use std::time::Duration;
 use tracing::{debug, error};
 
+use super::polymarket_common::{build_http_client, truncate, CLOB_API_URL, GAMMA_API_URL};
 use super::Tool;
+
+// ── Custom Types ───────────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,7 +34,6 @@ pub struct CustomGammaMarket {
     pub active: bool,
     pub closed: bool,
     pub slug: String,
-    // Outcomes can be a proper list or a JSON stringified list
     #[serde(default, deserialize_with = "deserialize_stringified_array")]
     pub outcomes: Vec<String>,
     #[serde(default)]
@@ -60,7 +46,10 @@ where
 {
     let value: Value = Deserialize::deserialize(deserializer)?;
     match value {
-        Value::Array(arr) => Ok(arr.into_iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect()),
+        Value::Array(arr) => Ok(arr
+            .into_iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect()),
         Value::String(s) => {
             if s.starts_with('[') {
                 serde_json::from_str(&s).map_err(serde::de::Error::custom)
@@ -72,28 +61,38 @@ where
     }
 }
 
+/// CLOB simplified market token.
+#[derive(Debug, Deserialize)]
+pub struct ClobToken {
+    pub token_id: String,
+    pub outcome: String,
+    pub price: Option<f64>,
+    pub winner: bool,
+}
 
-// ── Constants ──────────────────────────────────────────────────────
+/// CLOB simplified market.
+#[derive(Debug, Deserialize)]
+pub struct ClobSimplifiedMarket {
+    pub condition_id: String,
+    pub question: String,
+    pub tokens: Vec<ClobToken>,
+    pub active: bool,
+    pub closed: bool,
+    pub end_date_iso: Option<String>,
+}
 
-const GAMMA_API_URL: &str = "https://gamma-api.polymarket.com";
-const CLOB_API_URL: &str = "https://clob.polymarket.com";
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+/// CLOB order book entry.
+#[derive(Debug, Deserialize)]
+pub struct ClobOrderEntry {
+    pub price: String,
+    pub size: String,
+}
 
-
-/// Build a reqwest client that uses rustls (bundled CA roots) to avoid
-/// Windows Schannel `SEC_E_UNTRUSTED_ROOT` failures.
-/// Also includes DNS overrides for Polymarket domains to bypass ISP
-/// DNS sinkholing (e.g. A1 Bulgaria).
-fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
-    let cloudflare_ip = SocketAddr::from_str("104.18.34.205:443").unwrap();
-    
-    reqwest::Client::builder()
-        .use_rustls_tls()
-        .timeout(REQUEST_TIMEOUT)
-        .user_agent("crabbybot/0.1")
-        .resolve("gamma-api.polymarket.com", cloudflare_ip)
-        .resolve("clob.polymarket.com", cloudflare_ip)
-        .build()
+/// CLOB order book.
+#[derive(Debug, Deserialize)]
+pub struct ClobOrderBook {
+    pub bids: Vec<ClobOrderEntry>,
+    pub asks: Vec<ClobOrderEntry>,
 }
 
 // ── PolymarketTrendingTool ─────────────────────────────────────────
@@ -117,6 +116,7 @@ impl Tool for PolymarketTrendingTool {
     fn description(&self) -> &str {
         "Fetch the top trending / most active prediction markets on Polymarket. \
          Returns markets with their outcomes and current prices. \
+         Optionally filter by tag (e.g. 'politics', 'crypto', 'sports'). \
          Use this when the user asks about trending predictions or hot markets."
     }
 
@@ -127,6 +127,10 @@ impl Tool for PolymarketTrendingTool {
                 "limit": {
                     "type": "number",
                     "description": "Number of trending markets to return (default: 5, max: 10)"
+                },
+                "tag": {
+                    "type": "string",
+                    "description": "Optional tag to filter by (e.g. 'politics', 'crypto', 'sports', 'ai')"
                 }
             },
             "required": []
@@ -139,18 +143,23 @@ impl Tool for PolymarketTrendingTool {
             .and_then(|v| v.as_u64().or_else(|| v.as_f64().map(|f| f as u64)))
             .unwrap_or(5)
             .min(10);
+        let tag = args.get("tag").and_then(|v| v.as_str());
 
-        debug!(limit, "Fetching trending Polymarket markets");
+        debug!(limit, ?tag, "Fetching trending Polymarket markets");
 
         let client = match build_http_client() {
             Ok(c) => c,
             Err(e) => return format!("❌ Failed to create HTTP client: {e}"),
         };
 
-        let url = format!(
+        let mut url = format!(
             "{}/markets?limit={}&active=true&closed=false&order=volume24hr&ascending=false",
             GAMMA_API_URL, limit
         );
+        if let Some(t) = tag {
+            url.push_str(&format!("&tag={}", t));
+        }
+
         let markets: Vec<CustomGammaMarket> = match client.get(&url).send().await {
             Ok(resp) => {
                 if !resp.status().is_success() {
@@ -172,9 +181,11 @@ impl Tool for PolymarketTrendingTool {
         }
 
         let mut output = format!(
-            "🔮 **Polymarket Trending** ({} market{})\n\n",
+            "🔮 **Polymarket Trending** ({} market{}){}\n\n",
             markets.len(),
-            if markets.len() == 1 { "" } else { "s" }
+            if markets.len() == 1 { "" } else { "s" },
+            tag.map(|t| format!(" [tag: {t}]"))
+                .unwrap_or_default()
         );
 
         for (i, market) in markets.iter().enumerate() {
@@ -244,7 +255,7 @@ impl Tool for PolymarketSearchTool {
                 ("active", "true"),
                 ("closed", "false"),
                 ("order", "volume24hr"),
-                ("ascending", "false")
+                ("ascending", "false"),
             ])
             .send()
             .await
@@ -268,7 +279,6 @@ impl Tool for PolymarketSearchTool {
             return format!("No markets found matching \"{query}\".");
         }
 
-        // Limit to 10 results max for readability
         let display_markets = &markets[..markets.len().min(10)];
 
         let mut output = format!(
@@ -287,8 +297,7 @@ impl Tool for PolymarketSearchTool {
 
 // ── PolymarketMarketTool ───────────────────────────────────────────
 
-/// Fetches detailed information for a specific market by condition ID,
-/// including the live order book.
+/// Fetches detailed information for a specific market by condition ID or slug.
 #[derive(Default)]
 pub struct PolymarketMarketTool;
 
@@ -306,80 +315,110 @@ impl Tool for PolymarketMarketTool {
 
     fn description(&self) -> &str {
         "Get detailed information about a specific Polymarket prediction market \
-         by its condition ID. Returns the question, outcomes with live prices, \
+         by its condition ID or slug. Returns the question, outcomes with live prices, \
          order book depth, and market status. Use this when the user provides \
-         a specific market or condition ID."
+         a specific market identifier."
     }
 
     fn parameters(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "condition_id": {
+                "market_id": {
                     "type": "string",
-                    "description": "The condition ID (hex string) of the market to look up"
+                    "description": "Market condition ID (hex string) or slug (e.g. 'will-trump-win')"
                 }
             },
-            "required": ["condition_id"]
+            "required": ["market_id"]
         })
     }
 
     async fn execute(&self, args: HashMap<String, Value>) -> String {
-        let Some(condition_id) = args.get("condition_id").and_then(|v| v.as_str()) else {
-            return "Error: 'condition_id' parameter is required".into();
+        let Some(market_id) = args.get("market_id").and_then(|v| v.as_str()) else {
+            return "Error: 'market_id' parameter is required".into();
         };
 
-        debug!(condition_id, "Looking up Polymarket market");
+        debug!(market_id, "Looking up Polymarket market");
 
         let client = match build_http_client() {
             Ok(c) => c,
             Err(e) => return format!("❌ Failed to create HTTP client: {e}"),
         };
 
-        // Fetch the market info from the CLOB API
-        let url = format!("{}/markets/{}", CLOB_API_URL, condition_id);
-        let market: SimplifiedMarket = match client.get(&url).send().await {
-            Ok(resp) => {
-                if !resp.status().is_success() {
-                    let status = resp.status();
-                    let body = resp.text().await.unwrap_or_default();
-                    error!(%status, %body, "CLOB market fetch error");
-                    return format!("❌ Market lookup failed ({status}): {}", truncate(&body, 200));
-                }
-                match resp.json().await {
-                    Ok(m) => m,
-                    Err(e) => return format!("❌ Failed to parse market data: {e}"),
-                }
-            }
-            Err(e) => return format!("❌ Failed to reach Polymarket: {e}"),
-        };
+        // Determine if this is a slug or condition ID
+        let is_slug = !market_id.starts_with("0x") && market_id.contains('-');
 
-        // Try to fetch order books for each token
-        let mut order_books = Vec::new();
-        for token in &market.tokens {
-            let book_url = format!("{}/book", CLOB_API_URL);
-            if let Ok(resp) = client
-                .get(&book_url)
-                .query(&[("token_id", &token.token_id)])
-                .send()
-                .await
-            {
-                if resp.status().is_success() {
-                    if let Ok(book) = resp.json::<OrderBook>().await {
-                        order_books.push((token.outcome.clone(), book));
+        if is_slug {
+            // Fetch from Gamma API by slug
+            let url = format!("{}/markets?slug={}", GAMMA_API_URL, market_id);
+            let markets: Vec<CustomGammaMarket> = match client.get(&url).send().await {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        let status = resp.status();
+                        let body = resp.text().await.unwrap_or_default();
+                        return format!("❌ Slug lookup failed ({status}): {}", truncate(&body, 200));
+                    }
+                    match resp.json().await {
+                        Ok(m) => m,
+                        Err(e) => return format!("❌ Failed to parse market: {e}"),
+                    }
+                }
+                Err(e) => return format!("❌ Failed to reach Polymarket: {e}"),
+            };
+
+            match markets.first() {
+                Some(m) => format_gamma_market(1, m),
+                None => format!("No market found with slug \"{market_id}\"."),
+            }
+        } else {
+            // Fetch from CLOB API by condition ID
+            let url = format!("{}/markets/{}", CLOB_API_URL, market_id);
+            let market: ClobSimplifiedMarket = match client.get(&url).send().await {
+                Ok(resp) => {
+                    if !resp.status().is_success() {
+                        let status = resp.status();
+                        let body = resp.text().await.unwrap_or_default();
+                        error!(%status, %body, "CLOB market fetch error");
+                        return format!(
+                            "❌ Market lookup failed ({status}): {}",
+                            truncate(&body, 200)
+                        );
+                    }
+                    match resp.json().await {
+                        Ok(m) => m,
+                        Err(e) => return format!("❌ Failed to parse market data: {e}"),
+                    }
+                }
+                Err(e) => return format!("❌ Failed to reach Polymarket: {e}"),
+            };
+
+            // Fetch order books for each token
+            let mut order_books = Vec::new();
+            for token in &market.tokens {
+                let book_url = format!("{}/book", CLOB_API_URL);
+                if let Ok(resp) = client
+                    .get(&book_url)
+                    .query(&[("token_id", &token.token_id)])
+                    .send()
+                    .await
+                {
+                    if resp.status().is_success() {
+                        if let Ok(book) = resp.json::<ClobOrderBook>().await {
+                            order_books.push((token.outcome.clone(), book));
+                        }
                     }
                 }
             }
-        }
 
-        format_market_detail(&market, &order_books)
+            format_market_detail(&market, &order_books)
+        }
     }
 }
 
 // ── Formatting Helpers ─────────────────────────────────────────────
 
 /// Format a Gamma market as a compact summary line for listing.
-fn format_gamma_market(rank: usize, market: &CustomGammaMarket) -> String {
+pub fn format_gamma_market(rank: usize, market: &CustomGammaMarket) -> String {
     let question = if market.question.is_empty() {
         "(untitled)"
     } else {
@@ -418,8 +457,11 @@ fn format_gamma_market(rank: usize, market: &CustomGammaMarket) -> String {
     )
 }
 
-/// Format a simplified market with full detail for single-market lookups.
-fn format_market_detail(market: &SimplifiedMarket, order_books: &[(String, OrderBook)]) -> String {
+/// Format a CLOB market with full detail.
+fn format_market_detail(
+    market: &ClobSimplifiedMarket,
+    order_books: &[(String, ClobOrderBook)],
+) -> String {
     let question = if market.question.is_empty() {
         "(untitled)"
     } else {
@@ -434,12 +476,8 @@ fn format_market_detail(market: &SimplifiedMarket, order_books: &[(String, Order
         "⏸️ Inactive"
     };
 
-    let end_date = market
-        .end_date_iso
-        .as_deref()
-        .unwrap_or("No end date");
+    let end_date = market.end_date_iso.as_deref().unwrap_or("No end date");
 
-    // Format token outcomes with live prices
     let mut tokens_str = String::new();
     for token in &market.tokens {
         let price_pct = token
@@ -463,7 +501,6 @@ fn format_market_detail(market: &SimplifiedMarket, order_books: &[(String, Order
         ));
     }
 
-    // Format order book summaries
     let mut book_str = String::new();
     for (outcome, book) in order_books {
         let best_bid = book
@@ -506,13 +543,4 @@ fn format_market_detail(market: &SimplifiedMarket, order_books: &[(String, Order
         book = book_section,
         cid = market.condition_id,
     )
-}
-
-/// Truncate a string to `max_len` characters, appending "…" if truncated.
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}…", &s[..max_len])
-    }
 }
