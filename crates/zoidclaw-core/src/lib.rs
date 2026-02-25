@@ -1,0 +1,58 @@
+//! 🦀 zoidclaw-core: Core library for the zoidclaw AI assistant.
+//!
+//! This crate contains all the building blocks for an ultra-lightweight AI assistant:
+//!
+//! - [`config`] — Typed configuration loading from JSON
+//! - [`provider`] — LLM provider trait and OpenAI-compatible implementation
+//! - [`bus`] — Async message bus for channel-agent decoupling
+//! - [`tools`] — Tool trait, registry, and built-in filesystem/shell/web tools
+//! - [`agent`] — Agent loop, memory, skills, and context building
+//! - [`session`] — Conversation session persistence (JSONL)
+//! - [`cron`] — Scheduled task management
+//!
+//! # Quick Start
+//!
+//! ```no_run
+//! use zoidclaw_core::config::Config;
+//! use zoidclaw_core::provider::openai::OpenAiProvider;
+//! use zoidclaw_core::agent::{AgentLoop, AgentConfig};
+//! use zoidclaw_core::tools::ToolRegistry;
+//!
+//! // Load configuration
+//! let config = Config::load().unwrap();
+//!
+//! // Create a provider
+//! let (name, entry) = config.providers.find_active().unwrap();
+//! let client = reqwest::Client::new();
+//! let provider = OpenAiProvider::new(
+//!     name, &entry.api_key, None, &config.agents.defaults.model, client,
+//! );
+//!
+//! // Set up tools and agent
+//! let tools = ToolRegistry::new();
+//! let agent_config = AgentConfig {
+//!     model: Some(config.agents.defaults.model.clone()),
+//!     max_tokens: config.agents.defaults.max_tokens,
+//!     max_context_tokens: 30_000,
+//!     temperature: config.agents.defaults.temperature,
+//!     max_iterations: config.agents.defaults.max_tool_iterations,
+//!     workspace: config.workspace_path(),
+//! };
+//!
+//! use zoidclaw_core::service::pumpfun_stream::StreamState;
+//! use std::sync::Arc;
+//! use tokio::sync::Mutex;
+//! let discovery_state = Arc::new(Mutex::new(StreamState { worker: None, active_chat_id: None }));
+//! let mut agent = AgentLoop::new(Box::new(provider), tools, agent_config, discovery_state);
+//! ```
+
+pub mod agent;
+pub mod bus;
+pub mod config;
+pub mod cron;
+pub mod gateway;
+pub mod heartbeat;
+pub mod provider;
+pub mod service;
+pub mod session;
+pub mod tools;

@@ -1,0 +1,32 @@
+[package]
+name = "zoidclaw-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "CLI binary for the zoidclaw AI assistant"
+
+[[bin]]
+name = "zoidclaw"
+path = "src/main.rs"
+
+[dependencies]
+zoidclaw-core = { path = "../zoidclaw-core" }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+reqwest = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+clap = { workspace = true }
+anyhow = { workspace = true }
+dirs = { workspace = true }
+tokio-util = { workspace = true }
+futures = "0.3"
+
+[features]
+default = ["telegram"]  # Discord is opt-in: cargo build --features discord
+telegram = ["zoidclaw-core/telegram"]
+discord = ["zoidclaw-core/discord"]
+
+[dev-dependencies]
+polymarket-client-sdk = { path = "../../polymarket-client-sdk" }

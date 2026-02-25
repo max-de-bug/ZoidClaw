@@ -1,0 +1,852 @@
+//! 🦀 zoidclaw CLI — interactive chat, onboarding, and status commands.
+//!
+//! Usage:
+//!   zoidclaw chat          — Start an interactive chat session
+//!   zoidclaw onboard       — Create a default configuration
+//!   zoidclaw status        — Show current configuration and health
+//!   zoidclaw cron list      — List scheduled jobs
+//!   zoidclaw sessions       — List conversation sessions
+
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio_util::sync::CancellationToken;
+
+use zoidclaw_core::agent::{AgentConfig, AgentLoop};
+use zoidclaw_core::bus::MessageBus;
+use zoidclaw_core::config::Config;
+use zoidclaw_core::cron::{CronService, Schedule};
+#[cfg(feature = "discord")]
+use zoidclaw_core::gateway::channels::discord::DiscordTransport;
+#[cfg(feature = "telegram")]
+use zoidclaw_core::gateway::channels::telegram::TelegramTransport;
+use zoidclaw_core::gateway::AgentBridge;
+use zoidclaw_core::provider::openai::OpenAiProvider;
+use zoidclaw_core::provider::LlmProvider;
+use zoidclaw_core::session::SessionManager;
+use zoidclaw_core::tools::alpha_summary::AlphaSummaryTool;
+use zoidclaw_core::tools::discovery::DiscoveryTool;
+use zoidclaw_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
+use zoidclaw_core::tools::polymarket::{
+    PolymarketMarketTool, PolymarketSearchTool, PolymarketTrendingTool,
+};
+use zoidclaw_core::tools::polymarket_approve::PolymarketApproveTool;
+use zoidclaw_core::tools::polymarket_bridge::PolymarketBridgeTool;
+use zoidclaw_core::tools::polymarket_comments::PolymarketCommentsTool;
+use zoidclaw_core::tools::polymarket_ctf::{
+    PolymarketCtfMergeTool, PolymarketCtfRedeemTool, PolymarketCtfSplitTool,
+};
+use zoidclaw_core::tools::polymarket_data::{
+    PolymarketActivityTool, PolymarketBuilderLeaderboardTool, PolymarketClosedPositionsTool,
+    PolymarketHoldersTool, PolymarketLeaderboardTool, PolymarketOpenInterestTool,
+    PolymarketPositionsTool, PolymarketTradesTool, PolymarketVolumeTool,
+};
+use zoidclaw_core::tools::polymarket_events::{PolymarketEventDetailTool, PolymarketEventsTool};
+use zoidclaw_core::tools::polymarket_orderbook::{
+    PolymarketClobMarketTool, PolymarketLastTradeTool, PolymarketOrderbookTool,
+    PolymarketTickSizeTool,
+};
+use zoidclaw_core::tools::polymarket_orders::{
+    PolymarketAccountStatusTool, PolymarketApiKeysTool, PolymarketBalanceTool,
+    PolymarketCancelOrderTool, PolymarketMyOrdersTool, PolymarketNotificationsTool,
+    PolymarketRewardsTool,
+};
+use zoidclaw_core::tools::polymarket_prices::{PolymarketPriceHistoryTool, PolymarketPriceTool};
+use zoidclaw_core::tools::polymarket_profiles::PolymarketProfileTool;
+use zoidclaw_core::tools::polymarket_series::PolymarketSeriesTool;
+use zoidclaw_core::tools::polymarket_sports::PolymarketSportsTool;
+use zoidclaw_core::tools::polymarket_status::PolymarketStatusTool;
+use zoidclaw_core::tools::polymarket_tags::PolymarketTagsTool;
+use zoidclaw_core::tools::polymarket_trade::{
+    PolymarketCreateOrderTool, PolymarketMarketOrderTool,
+};
+use zoidclaw_core::tools::polymarket_wallet::{
+    PolymarketWalletCreateTool, PolymarketWalletImportTool, PolymarketWalletTool,
+};
+use zoidclaw_core::tools::pumpfun::{PumpFunSearchTool, PumpFunTokenTool};
+use zoidclaw_core::tools::pumpfun_buy::PumpFunBuyTool;
+use zoidclaw_core::tools::rugcheck::RugCheckTool;
+use zoidclaw_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
+use zoidclaw_core::tools::sentiment::SentimentTool;
+use zoidclaw_core::tools::shell::ExecTool;
+use zoidclaw_core::tools::solana::{
+    SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool,
+};
+use zoidclaw_core::tools::web::{WebFetchTool, WebSearchTool};
+use zoidclaw_core::tools::ToolRegistry;
+
+#[derive(Parser)]
+#[command(
+    name = "zoidclaw",
+    version,
+    about = "An ultra-lightweight personal AI assistant",
+    long_about = "🦀 zoidclaw — a blazing-fast AI assistant written in Rust.\n\nZero runtime dependencies. Single binary. Direct LLM API access."
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Start an interactive chat session
+    Chat {
+        /// Session name (default: "default")
+        #[arg(short, long, default_value = "default")]
+        session: String,
+
+        /// Model to use (overrides config)
+        #[arg(short, long)]
+        model: Option<String>,
+    },
+
+    /// Create or reset the default configuration
+    Onboard,
+
+    /// Show configuration status and health
+    Status,
+
+    /// Manage scheduled jobs
+    Cron {
+        #[command(subcommand)]
+        action: CronCommands,
+    },
+
+    /// Start the bot in background mode (Telegram/Discord)
+    Bot,
+
+    /// Manage conversation sessions
+    Sessions {
+        #[command(subcommand)]
+        action: Option<SessionCommands>,
+    },
+}
+
+#[derive(Subcommand)]
+enum CronCommands {
+    /// List all scheduled jobs
+    List,
+    /// Add a new job
+    Add {
+        /// Job name
+        #[arg(short, long)]
+        name: String,
+        /// Cron expression (e.g., "0 9 * * *")
+        #[arg(short, long)]
+        schedule: String,
+        /// Message/prompt to execute
+        #[arg(short, long)]
+        message: String,
+    },
+    /// Remove a job
+    Remove {
+        /// Job ID
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
+enum SessionCommands {
+    /// List all sessions
+    List,
+    /// Delete a session
+    Delete {
+        /// Session key
+        key: String,
+    },
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize tracing
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .with_target(false)
+        .compact()
+        .init();
+
+    let cli = Cli::parse();
+
+    match cli.command {
+        Some(Commands::Chat { session, model }) => cmd_chat(&session, model.as_deref()).await?,
+        Some(Commands::Bot) => cmd_bot().await?,
+        Some(Commands::Onboard) => cmd_onboard()?,
+        Some(Commands::Status) => cmd_status()?,
+        Some(Commands::Cron { action }) => cmd_cron(action)?,
+        Some(Commands::Sessions { action }) => cmd_sessions(action)?,
+        None => cmd_chat("default", None).await?,
+    }
+
+    Ok(())
+}
+
+// ── Shared Setup ────────────────────────────────────────────────────
+
+/// Shared helper that loads config, validates it, and builds a fully
+/// wired `AgentLoop` with providers and tools.
+///
+/// Returns `(agent, config, workspace_path)` so both `cmd_chat` and
+/// `cmd_bot` can avoid duplicating this boilerplate.
+fn validate_config(config: &Config) -> Result<()> {
+    if let Err(errors) = config.validate() {
+        eprintln!("\n  \x1b[31m❌ Configuration errors:\x1b[0m");
+        for e in &errors {
+            eprintln!("     • {}", e);
+        }
+        eprintln!();
+        anyhow::bail!("Fix the above {} error(s) in config.json", errors.len());
+    }
+    Ok(())
+}
+
+fn setup_agent(
+    config: &Config,
+    model_override: Option<&str>,
+    cron: Option<Arc<tokio::sync::Mutex<CronService>>>,
+    bus: Arc<MessageBus>,
+    discovery_state: Arc<tokio::sync::Mutex<zoidclaw_core::service::pumpfun_stream::StreamState>>,
+    default_channel: &str,
+    default_chat_id: &str,
+) -> Result<(AgentLoop, PathBuf)> {
+    let model = model_override
+        .unwrap_or(&config.agents.defaults.model)
+        .to_string();
+
+    // Resolve providers
+    let active_providers = config.providers.find_all_active();
+    if active_providers.is_empty() {
+        anyhow::bail!(
+            "No LLM provider configured with a real API key. \
+             Run `zoidclaw onboard` first, then edit config.json"
+        );
+    }
+
+    let client = reqwest::Client::new();
+    let mut inner_providers = Vec::new();
+    for (name, entry) in active_providers {
+        let p_model = entry.model.as_deref().unwrap_or(&model);
+        let p = OpenAiProvider::new(
+            name,
+            &entry.api_key,
+            entry.api_base.as_deref(),
+            p_model,
+            client.clone(),
+        );
+        inner_providers.push((name.to_string(), Box::new(p) as Box<dyn LlmProvider>));
+    }
+
+    let provider = zoidclaw_core::provider::FallbackProvider::new(inner_providers);
+
+    // Set up tools
+    let workspace = config.workspace_path();
+    let restrict = config.tools.restrict_to_workspace;
+    let mut tools = ToolRegistry::new();
+
+    tools.register(Box::new(ReadFileTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(WriteFileTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(EditFileTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(ListDirTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(ExecTool::new(
+        workspace.clone(),
+        restrict,
+        config.tools.exec.timeout_seconds,
+    )));
+    tools.register(Box::new(WebFetchTool::new(client.clone())));
+
+    if !config.tools.web_search.api_key.is_empty() {
+        tools.register(Box::new(WebSearchTool::new(
+            client.clone(),
+            &config.tools.web_search.api_key,
+            config.tools.web_search.max_results,
+        )));
+    }
+
+    // Schedule tools (LLM-powered cron via natural language)
+    if let Some(ref cron_arc) = cron {
+        tools.register(Box::new(ScheduleTaskTool::new(
+            Arc::clone(cron_arc),
+            default_channel.to_string(),
+            default_chat_id.to_string(),
+        )));
+        tools.register(Box::new(ListSchedulesTool::new(Arc::clone(cron_arc))));
+        tools.register(Box::new(CancelScheduleTool::new(Arc::clone(cron_arc))));
+    }
+
+    // Solana tools (crypto-native on-chain data)
+    tools.register(Box::new(SolanaBalanceTool::new(
+        client.clone(),
+        &config.tools.solana_rpc_url,
+    )));
+    tools.register(Box::new(SolanaTransactionsTool::new(
+        client.clone(),
+        &config.tools.solana_rpc_url,
+    )));
+    tools.register(Box::new(SolanaTokenBalancesTool::new(
+        client.clone(),
+        &config.tools.solana_rpc_url,
+    )));
+
+    // Pump.fun tools
+    tools.register(Box::new(PumpFunTokenTool::new(client.clone())));
+    tools.register(Box::new(PumpFunSearchTool::new(client.clone())));
+
+    // Polymarket read-only tools (markets, events, prices, data)
+    let pm = config.tools.polymarket.clone();
+    tools.register(Box::new(PolymarketTrendingTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketSearchTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketMarketTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketEventsTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketEventDetailTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketPriceTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketPriceHistoryTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketOrderbookTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketLastTradeTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketClobMarketTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketTickSizeTool::new(pm)));
+    tools.register(Box::new(PolymarketPositionsTool::new()));
+    tools.register(Box::new(PolymarketLeaderboardTool::new()));
+    tools.register(Box::new(PolymarketClosedPositionsTool::new()));
+    tools.register(Box::new(PolymarketTradesTool::new()));
+    tools.register(Box::new(PolymarketActivityTool::new()));
+    tools.register(Box::new(PolymarketHoldersTool::new()));
+    tools.register(Box::new(PolymarketOpenInterestTool::new()));
+    tools.register(Box::new(PolymarketVolumeTool::new()));
+    tools.register(Box::new(PolymarketBuilderLeaderboardTool::new()));
+    tools.register(Box::new(PolymarketBridgeTool::new()));
+    tools.register(Box::new(PolymarketStatusTool::new()));
+
+    // Polymarket Gamma browsing (tags, series, comments, profiles, sports)
+    tools.register(Box::new(PolymarketTagsTool::new()));
+    tools.register(Box::new(PolymarketSeriesTool::new()));
+    tools.register(Box::new(PolymarketCommentsTool::new()));
+    tools.register(Box::new(PolymarketProfileTool::new()));
+    tools.register(Box::new(PolymarketSportsTool::new()));
+
+    // Polymarket authenticated trading tools (need POLYMARKET_PRIVATE_KEY)
+    let pm = config.tools.polymarket.clone();
+    tools.register(Box::new(PolymarketCreateOrderTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketMarketOrderTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketMyOrdersTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCancelOrderTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketBalanceTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketWalletTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketWalletCreateTool::new()));
+    tools.register(Box::new(PolymarketWalletImportTool::new()));
+    tools.register(Box::new(PolymarketRewardsTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketNotificationsTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketApiKeysTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketAccountStatusTool::new(pm.clone())));
+
+    // Polymarket on-chain tools (need wallet + MATIC)
+    tools.register(Box::new(PolymarketCtfSplitTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCtfMergeTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCtfRedeemTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketApproveTool::new(pm)));
+
+    // Token Analysis
+    tools.register(Box::new(RugCheckTool::new(client.clone())));
+    tools.register(Box::new(SentimentTool::new(client.clone())));
+    tools.register(Box::new(AlphaSummaryTool::new(client.clone())));
+    tools.register(Box::new(PumpFunBuyTool::new(
+        client.clone(),
+        &config.tools.solana_rpc_url,
+        config.tools.solana_private_key.clone(),
+    )));
+    tools.register(Box::new(DiscoveryTool::new(bus, discovery_state.clone())));
+
+    let agent_config = AgentConfig {
+        model: model_override.map(|s| s.to_string()),
+        max_tokens: config.agents.defaults.max_tokens,
+        temperature: config.agents.defaults.temperature,
+        max_iterations: config.agents.defaults.max_tool_iterations,
+        workspace: workspace.clone(),
+        max_context_tokens: 10_000,
+    };
+
+    let agent = AgentLoop::new(Box::new(provider), tools, agent_config, discovery_state);
+    Ok((agent, workspace))
+}
+
+// ── Bot Command ─────────────────────────────────────────────────────
+
+async fn cmd_bot() -> Result<()> {
+    // 0. Ensure singleton execution via lock file to avoid Telegram session conflicts.
+    let config_dir = Config::config_dir();
+    let lock_path = config_dir.join("bot.lock");
+
+    // Ensure config directory exists
+    if !config_dir.exists() {
+        std::fs::create_dir_all(&config_dir)?;
+    }
+
+    // Try to create the lock file. If it already exists, another instance might be running.
+    // NOTE: This is a simple advisory lock. A crash might leave the file behind.
+    // A more robust solution would check the PID inside, but for a private bot,
+    // this covers the 90% case of forgotten terminal windows.
+    if lock_path.exists() {
+        anyhow::bail!(
+            "\n  \x1b[31m❌ Another instance of zoidclaw is already running!\x1b[0m\n\
+             \n     If you are sure it is not running, delete this file:\n\
+             \n     {}\n",
+            lock_path.display()
+        );
+    }
+    std::fs::write(&lock_path, std::process::id().to_string())?;
+
+    // Create a RAII guard to delete the lock file on exit.
+    struct LockGuard(std::path::PathBuf);
+    impl Drop for LockGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+    let _guard = LockGuard(lock_path.clone());
+
+    let config = Config::load()?;
+    validate_config(&config)?;
+
+    let workspace = config.workspace_path();
+
+    // Shared CronService for both the LLM tools and the cron ticker.
+    let cron = Arc::new(tokio::sync::Mutex::new(CronService::new(&workspace)));
+
+    // Derive default chat_id for cron jobs from the first allowed Telegram user.
+    // In Telegram private chats, chat_id == user_id.
+    let default_chat_id = config
+        .channels
+        .telegram
+        .as_ref()
+        .and_then(|t| t.allow_from.first())
+        .cloned()
+        .unwrap_or_default();
+
+    let (bus, receivers) = zoidclaw_core::bus::MessageBus::new(100);
+    let bus_arc = Arc::new(bus);
+
+    // 0.5 Pre-initialize services that the agent needs to know about
+    let stream_config = config.tools.pumpfun_stream.clone();
+    let stream = zoidclaw_core::service::pumpfun_stream::PumpFunStream::new(
+        Arc::clone(&bus_arc),
+        stream_config,
+    );
+    let discovery_state = stream.state();
+
+    let (agent, workspace) = setup_agent(
+        &config,
+        None,
+        Some(Arc::clone(&cron)),
+        Arc::clone(&bus_arc),
+        discovery_state,
+        "telegram",
+        &default_chat_id,
+    )?;
+
+    let inbound_rx = receivers.inbound_rx;
+    let internal_rx = receivers.internal_rx;
+
+    let mut services = tokio::task::JoinSet::new();
+
+    println!("  🦀 zoidclaw bot mode starting...");
+    println!(
+        "  Active channels: Telegram: {}, Discord: {}",
+        config.channels.telegram.as_ref().is_some_and(|c| c.enabled),
+        config.channels.discord.as_ref().is_some_and(|c| c.enabled)
+    );
+    {
+        let cron_locked = cron.lock().await;
+        println!("  Cron: {}", cron_locked.status());
+    }
+    println!("  Press Ctrl+C for graceful shutdown.");
+    println!("  ─────────────────────────────────────");
+
+    // 1. Start transports FIRST so they register their outbound subscribers
+    //    before the dispatch loop begins processing messages.
+
+    #[cfg(feature = "telegram")]
+    {
+        if let Some(ref tel_config) = config.channels.telegram {
+            if tel_config.enabled && !tel_config.token.is_empty() {
+                let bus_for_tel = Arc::clone(&bus_arc);
+                let allow_from = tel_config.allow_from.clone();
+                let transport =
+                    TelegramTransport::new(tel_config.token.clone(), bus_for_tel, allow_from);
+                services.spawn(async move {
+                    if let Err(e) = transport.run().await {
+                        tracing::error!("Telegram transport failed: {}", e);
+                    }
+                });
+            }
+        }
+    }
+
+    #[cfg(feature = "discord")]
+    {
+        if let Some(ref disc_config) = config.channels.discord {
+            if disc_config.enabled && !disc_config.token.is_empty() {
+                let bus_for_disc = Arc::clone(&bus_arc);
+                let allow_from = disc_config.allow_from.clone();
+                let transport =
+                    DiscordTransport::new(disc_config.token.clone(), bus_for_disc, allow_from);
+                services.spawn(async move {
+                    if let Err(e) = transport.run().await {
+                        tracing::error!("Discord transport failed: {}", e);
+                    }
+                });
+            }
+        }
+    }
+
+    if services.is_empty() {
+        println!("  ⚠️ No bot channels enabled. Please check your config.");
+        return Ok(());
+    }
+
+    // 2. Outbound Dispatcher — uses the shared subscriber map, no bus lock needed
+    let subs = bus_arc.subscribers();
+    services.spawn(async move {
+        zoidclaw_core::bus::dispatch_outbound(subs, receivers.outbound_rx).await;
+    });
+
+    // 3. Agent Bridge Task — with CancellationToken for graceful shutdown
+    let cancel = CancellationToken::new();
+    let bus_for_bridge = Arc::clone(&bus_arc);
+    let bridge = AgentBridge::new(
+        bus_for_bridge,
+        agent,
+        cancel.clone(),
+        Arc::clone(&cron),
+        workspace.clone(),
+    );
+    services.spawn(async move {
+        if let Err(e) = bridge.run(inbound_rx).await {
+            tracing::error!("Agent bridge failed: {}", e);
+        }
+    });
+
+    // 4. Cron Ticker — checks for due jobs every 30 seconds.
+    {
+        let cron_tick = Arc::clone(&cron);
+        let bus_tick = Arc::clone(&bus_arc);
+        let cancel_tick = cancel.clone();
+        services.spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+            loop {
+                tokio::select! {
+                    _ = cancel_tick.cancelled() => break,
+                    _ = interval.tick() => {
+                        let due_jobs = {
+                            let mut cron_locked = cron_tick.lock().await;
+                            cron_locked.get_due_jobs()
+                        };
+                        for job in due_jobs {
+                            tracing::info!(
+                                job_id = %job.id,
+                                job_name = %job.name,
+                                "Cron job fired"
+                            );
+                            if let Err(e) = bus_tick.inbound_sender().send(
+                                zoidclaw_core::bus::events::InboundMessage {
+                                    channel: job.channel.clone(),
+                                    chat_id: job.chat_id.clone(),
+                                    user_id: "cron".to_string(),
+                                    content: job.message.clone(),
+                                    media: Vec::new(),
+                                    is_system: true,
+                                },
+                            ).await {
+                                tracing::error!("Failed to send cron job to bus: {}", e);
+                            }
+                        }
+                    }
+                }
+            }
+            tracing::info!("Cron ticker stopped");
+        });
+    }
+
+    // 5. Pump.fun Stream — real-time token discovery (reactive)
+    {
+        services.spawn(async move {
+            stream.run(internal_rx).await;
+        });
+    }
+
+    // Wait for Ctrl+C, or for any critical service to exit unexpectedly.
+    tokio::select! {
+        _ = tokio::signal::ctrl_c() => {
+            println!("\n  ⏳ Shutting down gracefully...");
+        }
+        res = services.join_next() => {
+            if let Some(Err(e)) = res {
+                tracing::error!("Critical service task panicked: {}", e);
+            } else {
+                tracing::warn!("A core service exited unexpectedly. Shutting down.");
+            }
+        }
+    }
+
+    cancel.cancel();
+    // Give services a moment to clean up before hard-exiting.
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), services.shutdown()).await;
+
+    println!("  ✅ Shutdown complete.");
+    Ok(())
+}
+
+// ── Chat Command ────────────────────────────────────────────────────
+
+async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()> {
+    let config = Config::load()?;
+    validate_config(&config)?;
+
+    let model = model_override
+        .unwrap_or(&config.agents.defaults.model)
+        .to_string();
+    let (bus, _receivers) = zoidclaw_core::bus::MessageBus::new(10);
+    let discovery_state = Arc::new(tokio::sync::Mutex::new(
+        zoidclaw_core::service::pumpfun_stream::StreamState {
+            worker: None,
+            active_chat_id: None,
+        },
+    ));
+    let (mut agent, workspace) = setup_agent(
+        &config,
+        model_override,
+        None,
+        Arc::new(bus),
+        discovery_state,
+        "cli",
+        "direct",
+    )?;
+
+    // Print header
+    println!();
+    println!("  🦀 zoidclaw v{}", env!("CARGO_PKG_VERSION"));
+    println!(
+        "  Providers: {} | Model: {}",
+        config
+            .providers
+            .find_all_active()
+            .iter()
+            .map(|(n, _)| *n)
+            .collect::<Vec<_>>()
+            .join(", "),
+        model
+    );
+    println!(
+        "  Session: {} | Workspace: {}",
+        session_key,
+        workspace.display()
+    );
+    println!();
+    println!("  Type your message, or /quit to exit.");
+    println!("  ─────────────────────────────────────");
+    println!();
+
+    // Interactive loop
+    let stdin = io::stdin();
+    loop {
+        print!("  \x1b[36m>\x1b[0m ");
+        io::stdout().flush()?;
+
+        let mut input = String::new();
+        stdin.read_line(&mut input)?;
+        let input = input.trim();
+
+        if input.is_empty() {
+            continue;
+        }
+
+        // Handle commands
+        match input {
+            "/quit" | "/exit" | "/q" => {
+                println!("  Goodbye! 👋");
+                break;
+            }
+            "/clear" => {
+                let mut mgr = SessionManager::new(&workspace);
+                let session = mgr.get_or_create(session_key);
+                session.clear();
+                println!("  Session cleared.");
+                continue;
+            }
+            "/status" => {
+                cmd_status()?;
+                continue;
+            }
+            _ => {}
+        }
+
+        // Process message — pass None because CLI doesn't need a bus for typing events
+        println!();
+        match agent.process(input, session_key, None).await {
+            Ok(response) => {
+                println!("  \x1b[32m{}\x1b[0m\n", response.content);
+            }
+            Err(e) => {
+                eprintln!("  \x1b[31mError: {}\x1b[0m\n", e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ── Onboard Command ─────────────────────────────────────────────────
+
+fn cmd_onboard() -> Result<()> {
+    let path = Config::write_default_template()?;
+    println!();
+    println!("  ✅ Configuration created at:");
+    println!("     {}", path.display());
+    println!();
+    println!("  Next steps:");
+    println!("  1. Edit the config file and add your API key");
+    println!("  2. Run `zoidclaw chat` to start chatting");
+    println!();
+    Ok(())
+}
+
+// ── Status Command ──────────────────────────────────────────────────
+
+fn cmd_status() -> Result<()> {
+    let config_path = Config::default_path();
+    let config = Config::load()?;
+
+    println!();
+    println!("  🦀 zoidclaw status");
+    println!("  ─────────────────────────────────────");
+
+    // Config file
+    if config_path.exists() {
+        println!("  Config:    {}", config_path.display());
+    } else {
+        println!("  Config:    ❌ Not found (run `zoidclaw onboard`)");
+        return Ok(());
+    }
+
+    // Provider
+    match config.providers.find_active() {
+        Some((name, _)) => println!("  Provider:  ✅ {} configured", name),
+        None => println!("  Provider:  ❌ No provider configured"),
+    }
+
+    // Model
+    println!("  Model:     {}", config.agents.defaults.model);
+
+    // Workspace
+    let ws = config.workspace_path();
+    let ws_exists = ws.exists();
+    println!(
+        "  Workspace: {} {}",
+        ws.display(),
+        if ws_exists {
+            "✅"
+        } else {
+            "⚠️  (will be created)"
+        }
+    );
+
+    // Sessions
+    let mgr = SessionManager::new(&ws);
+    let sessions = mgr.list_sessions();
+    println!("  Sessions:  {} saved", sessions.len());
+
+    // Cron
+    let cron = CronService::new(&ws);
+    println!("  Cron:      {}", cron.status());
+
+    println!();
+    Ok(())
+}
+
+// ── Cron Commands ───────────────────────────────────────────────────
+
+fn cmd_cron(action: CronCommands) -> Result<()> {
+    let config = Config::load()?;
+    let ws = config.workspace_path();
+    let mut cron = CronService::new(&ws);
+
+    match action {
+        CronCommands::List => {
+            let jobs = cron.list_jobs(true);
+            if jobs.is_empty() {
+                println!("  No scheduled jobs.");
+            } else {
+                println!();
+                for job in jobs {
+                    let status = if job.enabled { "✅" } else { "⏸️ " };
+                    println!("  {} {} [{}]", status, job.name, job.id);
+                    match &job.schedule {
+                        Schedule::Cron { expression } => println!("     Cron: {}", expression),
+                        Schedule::Interval { seconds } => {
+                            println!("     Every {} seconds", seconds)
+                        }
+                    }
+                    println!("     Message: {}", job.message);
+                    if let Some(ref last) = job.last_run {
+                        println!("     Last run: {}", last);
+                    }
+                    println!();
+                }
+            }
+        }
+        CronCommands::Add {
+            name,
+            schedule,
+            message,
+        } => {
+            let sched = Schedule::Cron {
+                expression: schedule,
+            };
+            let id = cron.add_job(&name, sched, &message, "cli", "direct")?;
+            println!("  ✅ Job added: {} ({})", name, id);
+        }
+        CronCommands::Remove { id } => {
+            if cron.remove_job(&id)? {
+                println!("  ✅ Job removed: {}", id);
+            } else {
+                println!("  ❌ Job not found: {}", id);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ── Session Commands ────────────────────────────────────────────────
+
+fn cmd_sessions(action: Option<SessionCommands>) -> Result<()> {
+    let config = Config::load()?;
+    let ws = config.workspace_path();
+    let mut mgr = SessionManager::new(&ws);
+
+    match action {
+        Some(SessionCommands::Delete { key }) => {
+            if mgr.delete(&key) {
+                println!("  ✅ Session deleted: {}", key);
+            } else {
+                println!("  ❌ Session not found: {}", key);
+            }
+        }
+        Some(SessionCommands::List) | None => {
+            let sessions = mgr.list_sessions();
+            if sessions.is_empty() {
+                println!("  No saved sessions.");
+            } else {
+                println!();
+                for (key, updated) in sessions {
+                    println!("  📝 {} (updated: {})", key, updated);
+                }
+                println!();
+            }
+        }
+    }
+
+    Ok(())
+}

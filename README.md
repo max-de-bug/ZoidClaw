@@ -2,23 +2,23 @@
   <table>
     <tr>
       <td valign="top" width="220">
-        <img src="assets/images/crabbybot_logo.png" alt="Crabbybot Logo" width="200">
+        <img src="assets/images/zoidclaw_logo.png" alt="Zoidclaw Logo" width="200">
       </td>
       <td valign="top">
-        <h1>🦀 Crabbybot</h1>
+        <h1>🦀 Zoidclaw</h1>
         <a href="https://git.io/typing-svg">
           <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=1000&color=F74C00&vCenter=true&width=550&lines=The+high-performance+Rust+AI+bridge.;Asynchronous.+Concurrent.+Blazing+fast.;CLI%2C+Telegram+%26+Discord+integration.;Zero+runtime+dependencies.+Pure+Rust." alt="Typing SVG" />
         </a>
         <br><br>
         <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-stable-brightgreen.svg" alt="Rust"></a>
         <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-        <a href="https://github.com/max-de-bug/crabbybot"><img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey" alt="Platform"></a>
+        <a href="https://github.com/max-de-bug/zoidclaw"><img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey" alt="Platform"></a>
       </td>
     </tr>
   </table>
 </div>
 
-**Crabbybot** is  a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time Pump.fun alerts, automated rug security, and precision trading to your Telegram or CLI.
+**Zoidclaw** is  a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time Pump.fun alerts, automated rug security, and precision trading to your Telegram or CLI.
 
 ## 🚀 Key Features
 
@@ -70,18 +70,18 @@ graph TD
 ### Build
 1. **Clone & Compile**:
     ```bash
-    git clone https://github.com/max-de-bug/crabbybot.git
-    cd crabbybot
+    git clone https://github.com/max-de-bug/zoidclaw.git
+    cd zoidclaw
     cargo build --release
     ```
 2. **Onboard**:
     ```bash
-    ./target/release/crabbybot onboard
+    ./target/release/zoidclaw onboard
     ```
 
 ## ⚙️ Configuration
 
-Crabbybot is configured via `~/.crabbybot/config.json`. 
+Zoidclaw is configured via `~/.zoidclaw/config.json`. 
 
 ```json
 {
@@ -93,7 +93,7 @@ Crabbybot is configured via `~/.crabbybot/config.json`.
   "agents": {
     "defaults": {
       "model": "anthropic/claude-3-5-sonnet",
-      "workspace": "~/.crabbybot/workspace"
+      "workspace": "~/.zoidclaw/workspace"
     }
   },
   "channels": {
@@ -114,19 +114,19 @@ Crabbybot is configured via `~/.crabbybot/config.json`.
 ### Interactive Chat (CLI)
 Start a standard interactive session:
 ```bash
-crabbybot chat
+zoidclaw chat
 ```
 
 ### Bot Mode (Telegram/Discord)
-Run Crabbybot in the background to serve external channels:
+Run Zoidclaw in the background to serve external channels:
 ```bash
-crabbybot bot
+zoidclaw bot
 ```
 
 ### Scheduling Jobs
 Add a cron job to keep you updated:
 ```bash
-crabbybot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summarize the latest AI news."
+zoidclaw cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summarize the latest AI news."
 ```
 
 ## 📡 Channel Setup
@@ -134,13 +134,13 @@ crabbybot cron add --name "Morning Brief" --schedule "0 8 * * *" --message "Summ
 ### Telegram
 1. Message [@BotFather](https://t.me/botfather) to create a bot and get a token.
 2. Enable `telegram` in your `config.json`.
-3. Run `crabbybot bot`.
+3. Run `zoidclaw bot`.
 
 ### Discord
 1. Create an app on the [Discord Developer Portal](https://discord.com/developers/applications).
 2. Add a Bot, enable `Message Content Intent`.
 3. Enable `discord` in your `config.json`.
-4. Run `crabbybot bot`.
+4. Run `zoidclaw bot`.
 
 ## 🛡️ License
 

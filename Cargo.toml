@@ -1,12 +1,12 @@
 [workspace]
-members = ["crates/crabbybot-core", "crates/crabbybot-cli", "polymarket-cli-0.1.4"]
+members = ["crates/zoidclaw-core", "crates/zoidclaw-cli", "polymarket-cli-0.1.4"]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-authors = ["crabbybot contributors"]
+authors = ["zoidclaw contributors"]
 description = "An ultra-lightweight personal AI assistant written in Rust"
 
 [workspace.dependencies]

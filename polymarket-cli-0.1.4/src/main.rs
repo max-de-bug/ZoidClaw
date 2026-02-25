@@ -95,25 +95,60 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
             Ok(())
         }
         Commands::Markets(args) => {
-            commands::markets::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::markets::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Events(args) => {
-            commands::events::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::events::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Tags(args) => {
-            commands::tags::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::tags::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Series(args) => {
-            commands::series::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::series::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Comments(args) => {
-            commands::comments::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::comments::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Profiles(args) => {
-            commands::profiles::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::profiles::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Sports(args) => {
-            commands::sports::execute(&polymarket_client_sdk::gamma::Client::default(), args, cli.output).await
+            commands::sports::execute(
+                &polymarket_client_sdk::gamma::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Approve(args) => {
             commands::approve::execute(args, cli.output, cli.private_key.as_deref()).await
@@ -131,17 +166,29 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
             commands::ctf::execute(args, cli.output, cli.private_key.as_deref()).await
         }
         Commands::Data(args) => {
-            commands::data::execute(&polymarket_client_sdk::data::Client::default(), args, cli.output).await
+            commands::data::execute(
+                &polymarket_client_sdk::data::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Bridge(args) => {
-            commands::bridge::execute(&polymarket_client_sdk::bridge::Client::default(), args, cli.output).await
+            commands::bridge::execute(
+                &polymarket_client_sdk::bridge::Client::default(),
+                args,
+                cli.output,
+            )
+            .await
         }
         Commands::Wallet(args) => {
             commands::wallet::execute(args, &cli.output, cli.private_key.as_deref())
         }
         Commands::Upgrade => commands::upgrade::execute(),
         Commands::Status => {
-            let status = polymarket_client_sdk::gamma::Client::default().status().await?;
+            let status = polymarket_client_sdk::gamma::Client::default()
+                .status()
+                .await?;
             match cli.output {
                 OutputFormat::Json => {
                     println!("{}", serde_json::json!({"status": status}));
