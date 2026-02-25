@@ -1,11 +1,11 @@
 <div>
   <table>
     <tr>
-      <td valign="top" width="220">
+      <td valign="top" width="220" height="220">
         <img src="assets/images/zoidclaw_logo.png" alt="Zoidclaw Logo" width="200">
       </td>
       <td valign="top">
-        <h1>🦀 Zoidclaw</h1>
+        <h1>🦀 ZoidClaw</h1>
         <a href="https://git.io/typing-svg">
           <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=1000&color=F74C00&vCenter=true&width=550&lines=The+high-performance+Rust+AI+bridge.;Asynchronous.+Concurrent.+Blazing+fast.;CLI%2C+Telegram+%26+Discord+integration.;Zero+runtime+dependencies.+Pure+Rust." alt="Typing SVG" />
         </a>
