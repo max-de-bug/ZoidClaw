@@ -1,8 +1,8 @@
 <div>
   <table>
     <tr>
-      <td valign="top" width="220" height="220">
-        <img src="assets/images/zoidclaw_logo.png" alt="Zoidclaw Logo" width="200">
+      <td valign="top" width="200" height="200">
+        <img src="assets/images/zoidclaw_logo.png" alt="Zoidclaw Logo" width="200" height="200" style="display: block;">
       </td>
       <td valign="top">
         <h1>🦀 ZoidClaw</h1>
@@ -18,7 +18,7 @@
   </table>
 </div>
 
-**Zoidclaw** is  a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time Pump.fun alerts, automated rug security, and precision trading to your Telegram or CLI.
+**ZoidClaw** is  a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time Pump.fun alerts, automated rug security, and precision trading to your Telegram or CLI.
 
 ## 🚀 Key Features
 
