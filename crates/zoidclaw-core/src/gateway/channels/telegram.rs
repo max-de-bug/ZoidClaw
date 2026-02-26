@@ -227,6 +227,55 @@ impl TelegramTransport {
                 }
 
                 if let Some(text) = msg.text() {
+                    // FAST PATH: bypass the LLM entirely for `polymarket` CLI commands
+                    let normalized_text = text.trim();
+                    if normalized_text.to_lowercase() == "polymarket wallet show" || normalized_text.to_lowercase() == "check my polymarket proxy wallet balance" {
+                        use crate::config::Config;
+                        let config = Config::load().unwrap_or_default();
+                        
+                        use crate::tools::Tool;
+                        let tool = crate::tools::polymarket_wallet::PolymarketWalletTool::new(config.tools.polymarket.clone());
+                        let result = tool.execute(std::collections::HashMap::new()).await;
+                        
+                        let _ = _bot.send_message(msg.chat.id, result).await;
+                        return respond(());
+                    } else if normalized_text.starts_with("polymarket ") || normalized_text.starts_with("/polymarket ") {
+                        // Strip 'polymarket' or '/polymarket' prefix to get raw args
+                        let args_str = if normalized_text.starts_with("/") {
+                            &text.trim()[11..]
+                        } else {
+                            &text.trim()[11..]
+                        };
+
+                        if let Some(mut parsed_args) = shlex::split(args_str) {
+                            use crate::config::Config;
+                            let config = Config::load().unwrap_or_default();
+                            
+                            // Let the agent know it's processing natively via a progress msg
+                            let progress_msg = format!("⚙️ Running native CLI: `polymarket {}`…", parsed_args.join(" "));
+                            let _ = _bot.send_message(msg.chat.id, &progress_msg).await;
+
+                            let str_args: Vec<&str> = parsed_args.iter().map(|s| s.as_str()).collect();
+
+                            match crate::tools::polymarket_common::run_polymarket_cli(&config.tools.polymarket, &str_args).await {
+                                Ok(output) => {
+                                    // Send result in a markdown block
+                                    let content = if output.is_empty() {
+                                        "*(No output)*".to_string()
+                                    } else {
+                                        format!("```text\n{}\n```", output)
+                                    };
+                                    let _ = _bot.send_message(msg.chat.id, content).await;
+                                }
+                                Err(e) => {
+                                    let err_msg = format!("❌ **CLI Error:**\n```text\n{}\n```", e);
+                                    let _ = _bot.send_message(msg.chat.id, err_msg).await;
+                                }
+                            }
+                            return respond(());
+                        }
+                    }
+
                     let inbound = InboundMessage {
                         channel: "telegram".to_owned(),
                         chat_id: msg.chat.id.to_string(),

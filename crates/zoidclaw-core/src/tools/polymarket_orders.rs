@@ -68,7 +68,8 @@ impl Tool for PolymarketMyOrdersTool {
                     || err_msg.contains("Failed to authenticate")
                 {
                     format!("❌ **Account Not Connected**\n\n\
-                             Run `polymarket_api_keys action=create` to connect your wallet to the exchange.")
+                             Run `polymarket_api_keys action=create` to connect your wallet to the exchange.\n\
+                             ⚠️ **WAIT!** If you just tried this and it failed, do NOT retry automatically. The user may need a VPN. Inform the user.")
                 } else {
                     format!("❌ Failed to fetch orders: {e}")
                 }
@@ -208,7 +209,8 @@ impl Tool for PolymarketBalanceTool {
                 {
                     format!("❌ **Account Not Connected**\n\n\
                              Your wallet is configured, but you haven't \"connected\" it to the Polymarket exchange yet.\n\n\
-                             **To fix this:** Run `polymarket_api_keys action=create` to generate your exchange credentials.")
+                             **To fix this:** Run `polymarket_api_keys action=create` to generate your exchange credentials.\n\
+                             ⚠️ **WAIT!** If you just tried this and it failed, do NOT retry automatically. The user may need a VPN. Inform the user.")
                 } else {
                     format!("❌ Failed to fetch balance: {e}")
                 }

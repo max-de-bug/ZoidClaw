@@ -112,7 +112,8 @@ impl Tool for PolymarketCreateOrderTool {
                 {
                     format!("❌ **Account Not Connected**\n\n\
                              You haven't \"connected\" your wallet to the exchange yet.\n\
-                             **Action required:** Run `polymarket_api_keys action=create` to generate exchange credentials.")
+                             **Action required:** Run `polymarket_api_keys action=create` to generate exchange credentials.\n\
+                             ⚠️ **WAIT!** If you just tried this and it failed, do NOT retry automatically. The user may need a VPN. Inform the user.")
                 } else {
                     format!("❌ Failed to post limit order: {e}")
                 }
@@ -202,7 +203,8 @@ impl Tool for PolymarketMarketOrderTool {
                 {
                     format!("❌ **Account Not Connected**\n\n\
                              You haven't \"connected\" your wallet to the exchange yet.\n\
-                             **To fix this:** Run `polymarket_api_keys action=create` to generate exchange credentials.")
+                             **To fix this:** Run `polymarket_api_keys action=create` to generate exchange credentials.\n\
+                             ⚠️ **WAIT!** If you just tried this and it failed, do NOT retry automatically. The user may need a VPN. Inform the user.")
                 } else {
                     format!("❌ Failed to post market order: {e}")
                 }

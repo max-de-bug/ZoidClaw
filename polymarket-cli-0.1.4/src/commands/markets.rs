@@ -88,14 +88,16 @@ pub async fn execute(
             order,
             ascending,
         } => {
-            let resolved_closed = closed.or_else(|| active.map(|a| !a));
+            // Default to active=true if neither active nor closed are specified
+            let resolved_active = active.unwrap_or_else(|| closed.is_none() || closed == Some(false));
+            let resolved_closed = closed.or_else(|| Some(!resolved_active));
 
             let request = MarketsRequest::builder()
                 .limit(limit)
                 .maybe_closed(resolved_closed)
                 .maybe_offset(offset)
                 .maybe_order(order)
-                .maybe_ascending(if ascending { Some(true) } else { None })
+                .maybe_ascending(if ascending { Some(true) } else { Some(false) })
                 .build();
 
             let markets = client.markets(&request).await?;
@@ -126,6 +128,7 @@ pub async fn execute(
             let request = SearchRequest::builder()
                 .q(query)
                 .limit_per_type(limit)
+                .keep_closed_markets(0)      // Omit closed markets by default for relevance
                 .build();
 
             let results = client.search(&request).await?;

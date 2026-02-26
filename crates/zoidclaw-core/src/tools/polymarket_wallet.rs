@@ -72,7 +72,8 @@ impl Tool for PolymarketWalletTool {
             Ok(output) if output.contains("[]") || output.contains("No API keys found") => {
                 "\n\n⚠️ **CLOB Authentication Missing**\n\
                  Your wallet is found, but you haven't \"connected\" it to the CLOB exchange yet.\n\
-                 **Action required:** Run `polymarket_api_keys action=create` to generate your exchange credentials."
+                 **Action required:** Run `polymarket_api_keys action=create` to generate your exchange credentials.\n\
+                 ⚠️ **WAIT!** If you just tried this and it failed, do NOT retry automatically. The user may need a VPN. Inform the user."
                     .to_string()
             }
             Ok(_) => "\n\n✅ **CLOB Authentication Active**".to_string(),

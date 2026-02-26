@@ -73,15 +73,20 @@ pub async fn execute(client: &gamma::Client, args: EventsArgs, output: OutputFor
             ascending,
             tag,
         } => {
-            let resolved_closed = closed.or_else(|| active.map(|a| !a));
+            // Default to active=true if neither active nor closed are specified
+            let resolved_active = active.unwrap_or_else(|| closed.is_none() || closed == Some(false));
+            let resolved_closed = closed.or_else(|| Some(!resolved_active));
+
+            // Default to ordering by volume descending if not specified
+            let resolved_order = order.unwrap_or_else(|| "volume".to_string());
 
             let request = EventsRequest::builder()
                 .limit(limit)
                 .maybe_closed(resolved_closed)
                 .maybe_offset(offset)
-                .maybe_ascending(if ascending { Some(true) } else { None })
+                .maybe_ascending(if ascending { Some(true) } else { Some(false) })
                 .maybe_tag_slug(tag)
-                .order(order.into_iter().collect::<Vec<_>>())
+                .order(vec![resolved_order])
                 .build();
 
             let events = client.events(&request).await?;
