@@ -61,12 +61,43 @@ pub trait Tool: Send + Sync {
     async fn execute(&self, args: HashMap<String, Value>) -> String;
 }
 
+/// High-level categories representing user intent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum IntentCategory {
+    /// Broad analysis, web search, scraping
+    Research,
+    /// Creating, reading, running scripts, general system stuff
+    System,
+    /// Viewing Polymarket data, markets, events (read-only)
+    PolymarketRead,
+    /// Trading, viewing wallet, managing Polymarket positions
+    PolymarketTrade,
+    /// RugCheck, PumpFun, token/coin specific things
+    CryptoTokens,
+    /// Fallback for general conversation
+    #[default]
+    General,
+}
+
+impl IntentCategory {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Research => "research",
+            Self::System => "system",
+            Self::PolymarketRead => "polymarket_read",
+            Self::PolymarketTrade => "polymarket_trade",
+            Self::CryptoTokens => "crypto_tokens",
+            Self::General => "general",
+        }
+    }
+}
+
 /// Dynamic registry for agent tools.
 ///
 /// Allows runtime registration and lookup of tools by name.
 #[derive(Default)]
 pub struct ToolRegistry {
-    tools: HashMap<String, Box<dyn Tool>>,
+    tools: HashMap<String, (Box<dyn Tool>, IntentCategory)>,
 }
 
 impl ToolRegistry {
@@ -76,15 +107,15 @@ impl ToolRegistry {
         }
     }
 
-    /// Register a tool. Replaces any existing tool with the same name.
-    pub fn register(&mut self, tool: Box<dyn Tool>) {
-        debug!(tool = tool.name(), "Registered tool");
-        self.tools.insert(tool.name().to_string(), tool);
+    /// Register a tool with a specific intent category.
+    pub fn register(&mut self, tool: Box<dyn Tool>, category: IntentCategory) {
+        debug!(tool = tool.name(), category = category.as_str(), "Registered tool");
+        self.tools.insert(tool.name().to_string(), (tool, category));
     }
 
     /// Get a tool by name.
     pub fn get(&self, name: &str) -> Option<&dyn Tool> {
-        self.tools.get(name).map(|t| t.as_ref())
+        self.tools.get(name).map(|(t, _)| t.as_ref())
     }
 
     /// Check if a tool is registered.
@@ -95,7 +126,7 @@ impl ToolRegistry {
     /// Execute a tool by name with the given arguments.
     pub async fn execute(&self, name: &str, args: HashMap<String, Value>) -> String {
         match self.tools.get(name) {
-            Some(tool) => {
+            Some((tool, _)) => {
                 debug!(tool = name, "Executing tool");
                 tool.execute(args).await
             }
@@ -106,11 +137,27 @@ impl ToolRegistry {
         }
     }
 
-    /// Get all tool definitions in OpenAI function-calling format.
+    /// Get all tool definitions for a given category.
+    pub fn definitions_for(&self, category: IntentCategory) -> Vec<ToolDefinition> {
+        self.tools
+            .values()
+            .filter(|(_, cat)| *cat == category || *cat == IntentCategory::General) // Always include general
+            .map(|(tool, _)| ToolDefinition {
+                def_type: "function".into(),
+                function: ToolFunctionDef {
+                    name: tool.name().into(),
+                    description: tool.description().into(),
+                    parameters: tool.parameters(),
+                },
+            })
+            .collect()
+    }
+
+    /// Get all tool definitions (ignoring categories).
     pub fn definitions(&self) -> Vec<ToolDefinition> {
         self.tools
             .values()
-            .map(|tool| ToolDefinition {
+            .map(|(tool, _)| ToolDefinition {
                 def_type: "function".into(),
                 function: ToolFunctionDef {
                     name: tool.name().into(),
@@ -162,7 +209,7 @@ mod tests {
     #[tokio::test]
     async fn test_register_and_execute() {
         let mut registry = ToolRegistry::new();
-        registry.register(Box::new(DummyTool));
+        registry.register(Box::new(DummyTool), IntentCategory::General);
 
         assert!(registry.has("dummy"));
         assert_eq!(registry.len(), 1);

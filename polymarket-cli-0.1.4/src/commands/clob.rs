@@ -870,7 +870,7 @@ pub async fn execute(
                 .build();
             client.update_balance_allowance(request).await?;
             match output {
-                OutputFormat::Table => println!("Balance allowance updated."),
+                OutputFormat::Table | OutputFormat::Compact => println!("Balance allowance updated."),
                 OutputFormat::Json => {
                     println!("{}", serde_json::json!({"success": true}));
                 }
@@ -892,7 +892,7 @@ pub async fn execute(
                 .build();
             client.delete_notifications(&request).await?;
             match output {
-                OutputFormat::Table => println!("Notifications deleted."),
+                OutputFormat::Table | OutputFormat::Compact => println!("Notifications deleted."),
                 OutputFormat::Json => {
                     println!("{}", serde_json::json!({"success": true}));
                 }

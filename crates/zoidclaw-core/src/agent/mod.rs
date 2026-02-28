@@ -11,6 +11,7 @@
 pub mod context;
 pub mod memory;
 pub mod skills;
+pub mod router;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -26,10 +27,11 @@ use crate::provider::types::{ChatMessage, FunctionCall, ToolCallMessage};
 use crate::provider::LlmProvider;
 use crate::service::pumpfun_stream::StreamState;
 use crate::session::SessionManager;
-use crate::tools::ToolRegistry;
 use context::ContextBuilder;
 use memory::MemoryStore;
 use skills::SkillsLoader;
+use router::IntentRouter;
+use crate::tools::ToolRegistry;
 
 /// Structured result from the agent loop.
 #[derive(Debug, Clone)]
@@ -189,8 +191,14 @@ impl AgentLoop {
         );
         let mut messages = ctx.build_messages(&history, content, &[]);
 
+        // ── 3.5 Intent Routing ────────────────────────────────────────
+        // Classify intent via zero-cost keyword matching (no LLM call)
+        let category = IntentRouter::classify(content);
+
+        info!(session = session_key, category = category.as_str(), "Loaded filtered tools");
+
         // ── 4. Tool definitions ───────────────────────────────────────
-        let tool_defs = self.tools.definitions();
+        let tool_defs = self.tools.definitions_for(category);
 
         let mut iterations = 0u32;
         let max_iterations = self.config.max_iterations;
@@ -356,12 +364,13 @@ impl AgentLoop {
                         debug!(tool = %name, id = %id, "Executing tool call");
                         let result = tools.execute(&name, args).await;
                         debug!(tool = %name, result_len = result.len(), "Tool execution complete");
-                        (id, name, result)
+                        let out: (String, String, String) = (id, name, result);
+                        out
                     }
                 })
                 .collect();
 
-            let results = future::join_all(tool_futures).await;
+            let results: Vec<(String, String, String)> = future::join_all(tool_futures).await;
 
             for (id, name, result) in results {
                 let tool_msg = ChatMessage::tool_result(&id, &name, &result);
@@ -382,6 +391,7 @@ mod tests {
     use async_trait::async_trait;
     use serde_json::Value;
     use std::sync::atomic::{AtomicU32, Ordering};
+    use crate::tools::IntentCategory;
 
     // ── Fake provider that answers with N tool calls then a reply ─────────────
 
@@ -548,11 +558,11 @@ mod tests {
         registry.register(Box::new(CounterTool {
             counter: Arc::clone(&counter_a),
             name: "counter_a".into(),
-        }));
+        }), IntentCategory::General);
         registry.register(Box::new(CounterTool {
             counter: Arc::clone(&counter_b),
             name: "counter_b".into(),
-        }));
+        }), IntentCategory::General);
 
         let discovery_state = Arc::new(Mutex::new(StreamState {
             worker: None,
@@ -598,7 +608,7 @@ mod tests {
         registry.register(Box::new(CounterTool {
             counter: Arc::clone(&counter),
             name: "counter_a".into(),
-        }));
+        }), IntentCategory::General);
 
         let config = AgentConfig {
             max_iterations: 3,

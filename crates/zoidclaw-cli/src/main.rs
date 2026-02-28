@@ -185,6 +185,8 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+use zoidclaw_core::tools::IntentCategory;
+
 // ── Shared Setup ────────────────────────────────────────────────────
 
 /// Shared helper that loads config, validates it, and builds a fully
@@ -247,23 +249,23 @@ fn setup_agent(
     let restrict = config.tools.restrict_to_workspace;
     let mut tools = ToolRegistry::new();
 
-    tools.register(Box::new(ReadFileTool::new(workspace.clone(), restrict)));
-    tools.register(Box::new(WriteFileTool::new(workspace.clone(), restrict)));
-    tools.register(Box::new(EditFileTool::new(workspace.clone(), restrict)));
-    tools.register(Box::new(ListDirTool::new(workspace.clone(), restrict)));
+    tools.register(Box::new(ReadFileTool::new(workspace.clone(), restrict)), IntentCategory::System);
+    tools.register(Box::new(WriteFileTool::new(workspace.clone(), restrict)), IntentCategory::System);
+    tools.register(Box::new(EditFileTool::new(workspace.clone(), restrict)), IntentCategory::System);
+    tools.register(Box::new(ListDirTool::new(workspace.clone(), restrict)), IntentCategory::System);
     tools.register(Box::new(ExecTool::new(
         workspace.clone(),
         restrict,
         config.tools.exec.timeout_seconds,
-    )));
-    tools.register(Box::new(WebFetchTool::new(client.clone())));
+    )), IntentCategory::System);
+    tools.register(Box::new(WebFetchTool::new(client.clone())), IntentCategory::Research);
 
     if !config.tools.web_search.api_key.is_empty() {
         tools.register(Box::new(WebSearchTool::new(
             client.clone(),
             &config.tools.web_search.api_key,
             config.tools.web_search.max_results,
-        )));
+        )), IntentCategory::Research);
     }
 
     // Schedule tools (LLM-powered cron via natural language)
@@ -272,92 +274,92 @@ fn setup_agent(
             Arc::clone(cron_arc),
             default_channel.to_string(),
             default_chat_id.to_string(),
-        )));
-        tools.register(Box::new(ListSchedulesTool::new(Arc::clone(cron_arc))));
-        tools.register(Box::new(CancelScheduleTool::new(Arc::clone(cron_arc))));
+        )), IntentCategory::System);
+        tools.register(Box::new(ListSchedulesTool::new(Arc::clone(cron_arc))), IntentCategory::System);
+        tools.register(Box::new(CancelScheduleTool::new(Arc::clone(cron_arc))), IntentCategory::System);
     }
 
     // Solana tools (crypto-native on-chain data)
     tools.register(Box::new(SolanaBalanceTool::new(
         client.clone(),
         &config.tools.solana_rpc_url,
-    )));
+    )), IntentCategory::CryptoTokens);
     tools.register(Box::new(SolanaTransactionsTool::new(
         client.clone(),
         &config.tools.solana_rpc_url,
-    )));
+    )), IntentCategory::CryptoTokens);
     tools.register(Box::new(SolanaTokenBalancesTool::new(
         client.clone(),
         &config.tools.solana_rpc_url,
-    )));
+    )), IntentCategory::CryptoTokens);
 
     // Pump.fun tools
-    tools.register(Box::new(PumpFunTokenTool::new(client.clone())));
-    tools.register(Box::new(PumpFunSearchTool::new(client.clone())));
+    tools.register(Box::new(PumpFunTokenTool::new(client.clone())), IntentCategory::CryptoTokens);
+    tools.register(Box::new(PumpFunSearchTool::new(client.clone())), IntentCategory::CryptoTokens);
 
     // Polymarket read-only tools (markets, events, prices, data)
     let pm = config.tools.polymarket.clone();
-    tools.register(Box::new(PolymarketTrendingTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketSearchTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketMarketTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketEventsTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketEventDetailTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketPriceTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketPriceHistoryTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketOrderbookTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketLastTradeTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketClobMarketTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketTickSizeTool::new(pm)));
-    tools.register(Box::new(PolymarketPositionsTool::new()));
-    tools.register(Box::new(PolymarketLeaderboardTool::new()));
-    tools.register(Box::new(PolymarketClosedPositionsTool::new()));
-    tools.register(Box::new(PolymarketTradesTool::new()));
-    tools.register(Box::new(PolymarketActivityTool::new()));
-    tools.register(Box::new(PolymarketHoldersTool::new()));
-    tools.register(Box::new(PolymarketOpenInterestTool::new()));
-    tools.register(Box::new(PolymarketVolumeTool::new()));
-    tools.register(Box::new(PolymarketBuilderLeaderboardTool::new()));
-    tools.register(Box::new(PolymarketBridgeTool::new()));
-    tools.register(Box::new(PolymarketStatusTool::new()));
+    tools.register(Box::new(PolymarketTrendingTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketSearchTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketMarketTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketEventsTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketEventDetailTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketPriceTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketPriceHistoryTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketOrderbookTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketLastTradeTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketClobMarketTool::new(pm.clone())), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketTickSizeTool::new(pm)), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketPositionsTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketLeaderboardTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketClosedPositionsTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketTradesTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketActivityTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketHoldersTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketOpenInterestTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketVolumeTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketBuilderLeaderboardTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketBridgeTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketStatusTool::new()), IntentCategory::PolymarketRead);
 
     // Polymarket Gamma browsing (tags, series, comments, profiles, sports)
-    tools.register(Box::new(PolymarketTagsTool::new()));
-    tools.register(Box::new(PolymarketSeriesTool::new()));
-    tools.register(Box::new(PolymarketCommentsTool::new()));
-    tools.register(Box::new(PolymarketProfileTool::new()));
-    tools.register(Box::new(PolymarketSportsTool::new()));
+    tools.register(Box::new(PolymarketTagsTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketSeriesTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketCommentsTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketProfileTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketSportsTool::new()), IntentCategory::PolymarketRead);
 
     // Polymarket authenticated trading tools (need POLYMARKET_PRIVATE_KEY)
     let pm = config.tools.polymarket.clone();
-    tools.register(Box::new(PolymarketCreateOrderTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketMarketOrderTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketMyOrdersTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketCancelOrderTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketBalanceTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketWalletTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketWalletCreateTool::new()));
-    tools.register(Box::new(PolymarketWalletImportTool::new()));
-    tools.register(Box::new(PolymarketRewardsTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketNotificationsTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketApiKeysTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketAccountStatusTool::new(pm.clone())));
+    tools.register(Box::new(PolymarketCreateOrderTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketMarketOrderTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketMyOrdersTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketCancelOrderTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketBalanceTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketWalletTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketWalletCreateTool::new()), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketWalletImportTool::new()), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketRewardsTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketNotificationsTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketApiKeysTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketAccountStatusTool::new(pm.clone())), IntentCategory::PolymarketTrade);
 
     // Polymarket on-chain tools (need wallet + MATIC)
-    tools.register(Box::new(PolymarketCtfSplitTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketCtfMergeTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketCtfRedeemTool::new(pm.clone())));
-    tools.register(Box::new(PolymarketApproveTool::new(pm)));
+    tools.register(Box::new(PolymarketCtfSplitTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketCtfMergeTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketCtfRedeemTool::new(pm.clone())), IntentCategory::PolymarketTrade);
+    tools.register(Box::new(PolymarketApproveTool::new(pm)), IntentCategory::PolymarketTrade);
 
     // Token Analysis
-    tools.register(Box::new(RugCheckTool::new(client.clone())));
-    tools.register(Box::new(SentimentTool::new(client.clone())));
-    tools.register(Box::new(AlphaSummaryTool::new(client.clone())));
+    tools.register(Box::new(RugCheckTool::new(client.clone())), IntentCategory::CryptoTokens);
+    tools.register(Box::new(SentimentTool::new(client.clone())), IntentCategory::CryptoTokens);
+    tools.register(Box::new(AlphaSummaryTool::new(client.clone())), IntentCategory::CryptoTokens);
     tools.register(Box::new(PumpFunBuyTool::new(
         client.clone(),
         &config.tools.solana_rpc_url,
         config.tools.solana_private_key.clone(),
-    )));
-    tools.register(Box::new(DiscoveryTool::new(bus, discovery_state.clone())));
+    )), IntentCategory::CryptoTokens);
+    tools.register(Box::new(DiscoveryTool::new(bus, discovery_state.clone())), IntentCategory::CryptoTokens);
 
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),
