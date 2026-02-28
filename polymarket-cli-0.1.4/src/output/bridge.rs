@@ -11,7 +11,7 @@ use super::{OutputFormat, detail_field, format_decimal, print_detail_table};
 
 pub fn print_deposit(response: &DepositResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             let mut rows = Vec::new();
             detail_field!(rows, "EVM", format!("{}", response.address.evm));
             detail_field!(rows, "Solana", response.address.svm.clone());
@@ -35,7 +35,7 @@ pub fn print_deposit(response: &DepositResponse, output: &OutputFormat) {
 
 pub fn print_supported_assets(response: &SupportedAssetsResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if response.supported_assets.is_empty() {
                 println!("No supported assets found.");
                 return;
@@ -105,7 +105,7 @@ fn format_status(s: &DepositTransactionStatus) -> &'static str {
 
 pub fn print_status(response: &StatusResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if response.transactions.is_empty() {
                 println!("No transactions found.");
                 return;

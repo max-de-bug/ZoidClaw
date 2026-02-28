@@ -4,7 +4,7 @@ use polymarket_client_sdk::gamma::types::response::{
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::truncate;
+use super::{print_compact_table, truncate};
 
 #[derive(Tabled)]
 struct SportRow {
@@ -37,6 +37,21 @@ pub fn print_sports_table(sports: &[SportsMetadata]) {
     println!("{table}");
 }
 
+pub fn print_sports_compact(sports: &[SportsMetadata]) {
+    if sports.is_empty() {
+        println!("No sports found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = sports
+        .iter()
+        .map(|s| {
+            let r = sport_to_row(s);
+            vec![r.sport, r.series, r.tags]
+        })
+        .collect();
+    print_compact_table(&["Sport", "Series", "Tags"], rows);
+}
+
 pub fn print_sport_types(types: &SportsMarketTypesResponse) {
     if types.market_types.is_empty() {
         println!("No market types found.");
@@ -45,6 +60,16 @@ pub fn print_sport_types(types: &SportsMarketTypesResponse) {
     let rows: Vec<[String; 1]> = types.market_types.iter().map(|t| [t.clone()]).collect();
     let table = Table::from_iter(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_sport_types_compact(types: &SportsMarketTypesResponse) {
+    if types.market_types.is_empty() {
+        println!("No market types found.");
+        return;
+    }
+    for t in &types.market_types {
+        println!("• {t}");
+    }
 }
 
 #[derive(Tabled)]
@@ -79,4 +104,19 @@ pub fn print_teams_table(teams: &[Team]) {
     let rows: Vec<TeamRow> = teams.iter().map(team_to_row).collect();
     let table = Table::new(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_teams_compact(teams: &[Team]) {
+    if teams.is_empty() {
+        println!("No teams found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = teams
+        .iter()
+        .map(|t| {
+            let r = team_to_row(t);
+            vec![r.name, r.league, r.record, r.abbreviation]
+        })
+        .collect();
+    print_compact_table(&["Name", "League", "Record", "Abbr"], rows);
 }

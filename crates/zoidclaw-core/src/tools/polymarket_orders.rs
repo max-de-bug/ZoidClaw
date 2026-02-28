@@ -61,7 +61,7 @@ impl Tool for PolymarketMyOrdersTool {
         }
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
-            Ok(output) => format!("📋 **My Orders**\n\n```text\n{}\n```", output),
+            Ok(output) => format!("📋 My Orders\n\n{}", output),
             Err(e) => {
                 let err_msg = e.to_string();
                 if err_msg.contains("No API keys found")
@@ -131,7 +131,7 @@ impl Tool for PolymarketCancelOrderTool {
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
             Ok(output) => format!(
-                "✅ **Order Cancellation Result:**\n\n```text\n{}\n```",
+                "✅ Order Cancellation Result:\n\n{}",
                 output
             ),
             Err(e) => format!("❌ Failed to cancel order(s): {e}"),
@@ -199,7 +199,7 @@ impl Tool for PolymarketBalanceTool {
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
             Ok(output) => format!(
-                "💰 **Polymarket Balance ({})**\n\n```text\n{}\n```",
+                "💰 Polymarket Balance ({})\n\n{}",
                 asset_type_str, output
             ),
             Err(e) => {
@@ -289,7 +289,7 @@ impl Tool for PolymarketRewardsTool {
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
             Ok(output) => format!(
-                "💎 **Polymarket Rewards ({})**\n\n```text\n{}\n```",
+                "💎 Polymarket Rewards ({})\n\n{}",
                 action, output
             ),
             Err(e) => format!("❌ Failed to fetch rewards: {e}"),
@@ -335,7 +335,7 @@ impl Tool for PolymarketNotificationsTool {
         let cli_args = vec!["clob", "notifications"];
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
             Ok(output) => format!(
-                "🔔 **Polymarket Notifications**\n\n```text\n{}\n```",
+                "🔔 Polymarket Notifications\n\n{}",
                 output
             ),
             Err(e) => format!("❌ Failed to fetch notifications: {e}"),
@@ -396,7 +396,7 @@ impl Tool for PolymarketApiKeysTool {
         };
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
-            Ok(output) => format!("🔑 **API Keys ({})**\n\n```text\n{}\n```", action, output),
+            Ok(output) => format!("🔑 API Keys ({})\n\n{}", action, output),
             Err(e) => format!("❌ Failed API key action '{action}': {e}"),
         }
     }
@@ -439,7 +439,7 @@ impl Tool for PolymarketAccountStatusTool {
 
         let cli_args = vec!["clob", "account-status"];
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
-            Ok(output) => format!("👤 **Account Status**\n\n```text\n{}\n```", output),
+            Ok(output) => format!("👤 Account Status\n\n{}", output),
             Err(e) => format!("❌ Failed to fetch account status: {e}"),
         }
     }

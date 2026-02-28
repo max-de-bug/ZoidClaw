@@ -2,7 +2,7 @@ use polymarket_client_sdk::gamma::types::response::Series;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{detail_field, format_decimal, print_detail_table, truncate};
+use super::{detail_field, format_decimal, print_compact_detail, print_compact_table, print_detail_table, truncate};
 
 #[derive(Tabled)]
 struct SeriesRow {
@@ -46,6 +46,21 @@ pub fn print_series_table(series: &[Series]) {
     let rows: Vec<SeriesRow> = series.iter().map(series_to_row).collect();
     let table = Table::new(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_series_compact(series: &[Series]) {
+    if series.is_empty() {
+        println!("No series found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = series
+        .iter()
+        .map(|s| {
+            let r = series_to_row(s);
+            vec![r.title, r.series_type, r.volume, r.status]
+        })
+        .collect();
+    print_compact_table(&["Title", "Type", "Volume", "Status"], rows);
 }
 
 pub fn print_series_detail(s: &Series) {
@@ -115,4 +130,46 @@ pub fn print_series_detail(s: &Series) {
     );
 
     print_detail_table(rows);
+}
+
+pub fn print_series_detail_compact(s: &Series) {
+    let mut rows: Vec<[String; 2]> = Vec::new();
+
+    detail_field!(rows, "ID", s.id.clone());
+    detail_field!(rows, "Title", s.title.clone().unwrap_or_default());
+    detail_field!(rows, "Type", s.series_type.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Volume",
+        s.volume.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Liquidity",
+        s.liquidity.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(rows, "Status", series_status(s).into());
+    detail_field!(
+        rows,
+        "Events",
+        s.events
+            .as_ref()
+            .map(|e| e.len().to_string())
+            .unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Tags",
+        s.tags
+            .as_ref()
+            .map(|tags| {
+                tags.iter()
+                    .filter_map(|t| t.label.as_deref())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default()
+    );
+
+    print_compact_detail(rows);
 }

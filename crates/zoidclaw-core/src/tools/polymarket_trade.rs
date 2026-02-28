@@ -104,7 +104,7 @@ impl Tool for PolymarketCreateOrderTool {
         }
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
-            Ok(output) => format!("✅ **Limit Order Result:**\n\n```text\n{}\n```", output),
+            Ok(output) => format!("✅ Limit Order Result:\n\n{}", output),
             Err(e) => {
                 let err_msg = e.to_string();
                 if err_msg.contains("No API keys found")
@@ -195,7 +195,7 @@ impl Tool for PolymarketMarketOrderTool {
         ];
 
         match crate::tools::polymarket_common::run_polymarket_cli(&self.config, &cli_args).await {
-            Ok(output) => format!("✅ **Market Order Result:**\n\n```text\n{}\n```", output),
+            Ok(output) => format!("✅ Market Order Result:\n\n{}", output),
             Err(e) => {
                 let err_msg = e.to_string();
                 if err_msg.contains("No API keys found")

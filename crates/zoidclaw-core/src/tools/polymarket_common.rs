@@ -159,7 +159,7 @@ pub async fn run_polymarket_cli(
     args: &[&str],
 ) -> anyhow::Result<String> {
     let mut cmd = std::process::Command::new("cargo");
-    cmd.args(["run", "-q", "-p", "polymarket-cli", "--"]);
+    cmd.args(["run", "-q", "-p", "polymarket-cli", "--", "-o", "compact"]);
     cmd.args(args);
 
     let (key_opt, sig_type_str, _source) = resolve_wallet_config(bot_config);

@@ -117,7 +117,7 @@ fn cmd_create(output: &OutputFormat, force: bool, signature_type: &str) -> Resul
                 })
             );
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Wallet created successfully!");
             println!("Address:        {address}");
             if let Some(proxy) = proxy_addr {
@@ -158,7 +158,7 @@ fn cmd_import(key: &str, output: &OutputFormat, force: bool, signature_type: &st
                 })
             );
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Wallet imported successfully!");
             println!("Address:        {address}");
             if let Some(proxy) = proxy_addr {
@@ -182,7 +182,7 @@ fn cmd_address(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<
         OutputFormat::Json => {
             println!("{}", serde_json::json!({"address": address.to_string()}));
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("{address}");
         }
     }
@@ -215,7 +215,7 @@ fn cmd_show(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<()>
                 })
             );
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             match &address {
                 Some(addr) => println!("Address:        {addr}"),
                 None => println!("Address:        (not configured)"),
@@ -234,7 +234,7 @@ fn cmd_show(output: &OutputFormat, private_key_flag: Option<&str>) -> Result<()>
 fn cmd_reset(output: &OutputFormat, force: bool) -> Result<()> {
     if !config::config_exists() {
         match output {
-            OutputFormat::Table => println!("Nothing to reset. No config found."),
+            OutputFormat::Table | OutputFormat::Compact => println!("Nothing to reset. No config found."),
             OutputFormat::Json => {
                 println!(
                     "{}",
@@ -261,7 +261,7 @@ fn cmd_reset(output: &OutputFormat, force: bool) -> Result<()> {
     config::delete_config()?;
 
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Config deleted: {}", path.display());
             println!("All keys and settings have been removed.");
         }

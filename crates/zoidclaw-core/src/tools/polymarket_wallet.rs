@@ -81,7 +81,7 @@ impl Tool for PolymarketWalletTool {
         };
 
         format!(
-            "👛 **Polymarket Wallet** (Source: {})\n\n```text\n{}\n```{}",
+            "👛 Polymarket Wallet (Source: {})\n\n{}{}",
             source.label(),
             wallet_info,
             api_key_status
@@ -124,7 +124,7 @@ impl Tool for PolymarketWalletCreateTool {
         let cli_args = vec!["wallet", "create"];
 
         match crate::tools::polymarket_common::run_polymarket_cli(&dummy_config, &cli_args).await {
-            Ok(output) => format!("✅ **New Wallet Created Successfully!**\n\n```text\n{}\n```\n*⚠️ Your private key is securely stored in the config file. Do not share it!*", output),
+            Ok(output) => format!("✅ New Wallet Created Successfully!\n\n{}\n⚠️ Your private key is securely stored in the config file. Do not share it!", output),
             Err(e) => format!("❌ Failed to create wallet: {e}"),
         }
     }
@@ -174,7 +174,7 @@ impl Tool for PolymarketWalletImportTool {
 
         match crate::tools::polymarket_common::run_polymarket_cli(&dummy_config, &cli_args).await {
             Ok(output) => format!(
-                "✅ **Wallet Imported Successfully!**\n\n```text\n{}\n```",
+                "✅ Wallet Imported Successfully!\n\n{}",
                 output
             ),
             Err(e) => format!("❌ Failed to import wallet: {e}"),

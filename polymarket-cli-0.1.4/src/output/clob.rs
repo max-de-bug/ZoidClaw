@@ -16,14 +16,14 @@ use serde_json::json;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{OutputFormat, format_decimal, truncate};
+use super::{OutputFormat, format_decimal, print_compact_detail, print_compact_table, truncate};
 
 /// Base64-encoded empty cursor returned by the CLOB API when there are no more pages.
 const END_CURSOR: &str = "LTE=";
 
 pub fn print_ok(result: &str, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("CLOB API: {result}"),
+        OutputFormat::Table | OutputFormat::Compact => println!("CLOB API: {result}"),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -35,7 +35,7 @@ pub fn print_ok(result: &str, output: &OutputFormat) {
 
 pub fn print_price(result: &PriceResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("Price: {}", result.price),
+        OutputFormat::Table | OutputFormat::Compact => println!("Price: {}", result.price),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -78,6 +78,23 @@ pub fn print_batch_prices(result: &PricesResponse, output: &OutputFormat) {
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
         }
+        OutputFormat::Compact => {
+            let Some(prices) = &result.prices else {
+                println!("No prices available.");
+                return;
+            };
+            if prices.is_empty() {
+                println!("No prices available.");
+                return;
+            }
+            let mut rows = Vec::new();
+            for (token_id, sides) in prices {
+                for (side, price) in sides {
+                    rows.push(vec![truncate(&token_id.to_string(), 20), side.to_string(), price.to_string()]);
+                }
+            }
+            print_compact_table(&["Token ID", "Side", "Price"], rows);
+        }
         OutputFormat::Json => {
             let data = result.prices.as_ref().map(|prices| {
                 prices
@@ -98,7 +115,7 @@ pub fn print_batch_prices(result: &PricesResponse, output: &OutputFormat) {
 
 pub fn print_midpoint(result: &MidpointResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("Midpoint: {}", result.mid),
+        OutputFormat::Table | OutputFormat::Compact => println!("Midpoint: {}", result.mid),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -133,6 +150,14 @@ pub fn print_midpoints(result: &MidpointsResponse, output: &OutputFormat) {
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
         }
+        OutputFormat::Compact => {
+            if result.midpoints.is_empty() {
+                println!("No midpoints available.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.midpoints.iter().map(|(id, mid)| vec![truncate(&id.to_string(), 20), mid.to_string()]).collect();
+            print_compact_table(&["Token ID", "Midpoint"], rows);
+        }
         OutputFormat::Json => {
             let data: serde_json::Map<String, serde_json::Value> = result
                 .midpoints
@@ -146,7 +171,7 @@ pub fn print_midpoints(result: &MidpointsResponse, output: &OutputFormat) {
 
 pub fn print_spread(result: &SpreadResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("Spread: {}", result.spread),
+        OutputFormat::Table | OutputFormat::Compact => println!("Spread: {}", result.spread),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -184,6 +209,18 @@ pub fn print_spreads(result: &SpreadsResponse, output: &OutputFormat) {
                 .collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
+        }
+        OutputFormat::Compact => {
+            let Some(spreads) = &result.spreads else {
+                println!("No spreads available.");
+                return;
+            };
+            if spreads.is_empty() {
+                println!("No spreads available.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = spreads.iter().map(|(id, spread)| vec![truncate(&id.to_string(), 20), spread.to_string()]).collect();
+            print_compact_table(&["Token ID", "Spread"], rows);
         }
         OutputFormat::Json => {
             let data = result.spreads.as_ref().map(|spreads| {
@@ -226,14 +263,8 @@ pub fn print_order_book(result: &OrderBookSummaryResponse, output: &OutputFormat
         OutputFormat::Table => {
             println!("Market: {}", result.market);
             println!("Asset: {}", result.asset_id);
-            println!(
-                "Last Trade: {}",
-                result
-                    .last_trade_price
-                    .map_or("—".into(), |p| p.to_string())
-            );
+            println!("Last Trade: {}", result.last_trade_price.map_or("—".into(), |p| p.to_string()));
             println!();
-
             #[derive(Tabled)]
             struct Row {
                 #[tabled(rename = "Price")]
@@ -241,39 +272,43 @@ pub fn print_order_book(result: &OrderBookSummaryResponse, output: &OutputFormat
                 #[tabled(rename = "Size")]
                 size: String,
             }
-
             if result.bids.is_empty() {
                 println!("No bids.");
             } else {
                 println!("Bids:");
-                let rows: Vec<Row> = result
-                    .bids
-                    .iter()
-                    .map(|o| Row {
-                        price: o.price.to_string(),
-                        size: o.size.to_string(),
-                    })
-                    .collect();
+                let rows: Vec<Row> = result.bids.iter().map(|o| Row { price: o.price.to_string(), size: o.size.to_string() }).collect();
                 let table = Table::new(rows).with(Style::rounded()).to_string();
                 println!("{table}");
             }
-
             println!();
-
             if result.asks.is_empty() {
                 println!("No asks.");
             } else {
                 println!("Asks:");
-                let rows: Vec<Row> = result
-                    .asks
-                    .iter()
-                    .map(|o| Row {
-                        price: o.price.to_string(),
-                        size: o.size.to_string(),
-                    })
-                    .collect();
+                let rows: Vec<Row> = result.asks.iter().map(|o| Row { price: o.price.to_string(), size: o.size.to_string() }).collect();
                 let table = Table::new(rows).with(Style::rounded()).to_string();
                 println!("{table}");
+            }
+        }
+        OutputFormat::Compact => {
+            println!("Market: {}", result.market);
+            println!("Asset: {}", result.asset_id);
+            println!("Last Trade: {}", result.last_trade_price.map_or("—".into(), |p| p.to_string()));
+            println!();
+            if result.bids.is_empty() {
+                println!("No bids.");
+            } else {
+                println!("Bids:");
+                let rows: Vec<Vec<String>> = result.bids.iter().map(|o| vec![o.price.to_string(), o.size.to_string()]).collect();
+                print_compact_table(&["Price", "Size"], rows);
+            }
+            println!();
+            if result.asks.is_empty() {
+                println!("No asks.");
+            } else {
+                println!("Asks:");
+                let rows: Vec<Vec<String>> = result.asks.iter().map(|o| vec![o.price.to_string(), o.size.to_string()]).collect();
+                print_compact_table(&["Price", "Size"], rows);
             }
         }
         OutputFormat::Json => {
@@ -287,7 +322,7 @@ pub fn print_order_book(result: &OrderBookSummaryResponse, output: &OutputFormat
 
 pub fn print_order_books(result: &[OrderBookSummaryResponse], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if result.is_empty() {
                 println!("No order books found.");
                 return;
@@ -308,7 +343,7 @@ pub fn print_order_books(result: &[OrderBookSummaryResponse], output: &OutputFor
 
 pub fn print_last_trade(result: &LastTradePriceResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("Last Trade: {} ({})", result.price, result.side),
+        OutputFormat::Table | OutputFormat::Compact => println!("Last Trade: {} ({})", result.price, result.side),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -349,6 +384,14 @@ pub fn print_last_trades_prices(result: &[LastTradesPricesResponse], output: &Ou
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
         }
+        OutputFormat::Compact => {
+            if result.is_empty() {
+                println!("No last trade prices found.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.iter().map(|t| vec![truncate(&t.token_id.to_string(), 20), t.price.to_string(), t.side.to_string()]).collect();
+            print_compact_table(&["Token ID", "Price", "Side"], rows);
+        }
         OutputFormat::Json => {
             let data: Vec<_> = result
                 .iter()
@@ -372,37 +415,38 @@ pub fn print_clob_market(result: &MarketResponse, output: &OutputFormat) {
                 ["Question".into(), result.question.clone()],
                 ["Description".into(), truncate(&result.description, 80)],
                 ["Slug".into(), result.market_slug.clone()],
-                [
-                    "Condition ID".into(),
-                    result.condition_id.map_or("—".into(), |c| c.to_string()),
-                ],
+                ["Condition ID".into(), result.condition_id.map_or("—".into(), |c| c.to_string())],
                 ["Active".into(), result.active.to_string()],
                 ["Closed".into(), result.closed.to_string()],
-                [
-                    "Accepting Orders".into(),
-                    result.accepting_orders.to_string(),
-                ],
-                [
-                    "Min Order Size".into(),
-                    result.minimum_order_size.to_string(),
-                ],
+                ["Accepting Orders".into(), result.accepting_orders.to_string()],
+                ["Min Order Size".into(), result.minimum_order_size.to_string()],
                 ["Min Tick Size".into(), result.minimum_tick_size.to_string()],
                 ["Neg Risk".into(), result.neg_risk.to_string()],
-                [
-                    "End Date".into(),
-                    result.end_date_iso.map_or("—".into(), |d| d.to_rfc3339()),
-                ],
+                ["End Date".into(), result.end_date_iso.map_or("—".into(), |d| d.to_rfc3339())],
             ];
             for token in &result.tokens {
-                rows.push([
-                    format!("Token ({})", token.outcome),
-                    format!(
-                        "ID: {} | Price: {} | Winner: {}",
-                        token.token_id, token.price, token.winner
-                    ),
-                ]);
+                rows.push([format!("Token ({})", token.outcome), format!("ID: {} | Price: {} | Winner: {}", token.token_id, token.price, token.winner)]);
             }
             super::print_detail_table(rows);
+        }
+        OutputFormat::Compact => {
+            let mut rows = vec![
+                ["Question".into(), result.question.clone()],
+                ["Description".into(), truncate(&result.description, 80)],
+                ["Slug".into(), result.market_slug.clone()],
+                ["Condition ID".into(), result.condition_id.map_or("—".into(), |c| c.to_string())],
+                ["Active".into(), result.active.to_string()],
+                ["Closed".into(), result.closed.to_string()],
+                ["Orders".into(), result.accepting_orders.to_string()],
+                ["Min Order".into(), result.minimum_order_size.to_string()],
+                ["Min Tick".into(), result.minimum_tick_size.to_string()],
+                ["Neg Risk".into(), result.neg_risk.to_string()],
+                ["End Date".into(), result.end_date_iso.map_or("—".into(), |d| d.format("%Y-%m-%d %H:%M").to_string())],
+            ];
+            for token in &result.tokens {
+                rows.push([format!("Token ({})", token.outcome), format!("Price: {} | Winner: {}", token.price, token.winner)]);
+            }
+            print_compact_detail(rows);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(result).unwrap());
@@ -428,21 +472,29 @@ pub fn print_clob_markets(result: &Page<MarketResponse>, output: &OutputFormat) 
                 #[tabled(rename = "Min Tick")]
                 min_tick: String,
             }
-            let rows: Vec<Row> = result
-                .data
-                .iter()
-                .map(|m| Row {
-                    question: truncate(&m.question, 50),
-                    active: if m.active { "Yes" } else { "No" }.into(),
-                    tokens: m.tokens.len().to_string(),
-                    min_tick: m.minimum_tick_size.to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.data.iter().map(|m| Row {
+                question: truncate(&m.question, 50),
+                active: if m.active { "Yes" } else { "No" }.into(),
+                tokens: m.tokens.len().to_string(),
+                min_tick: m.minimum_tick_size.to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
-            if result.next_cursor != END_CURSOR {
-                println!("Next cursor: {}", result.next_cursor);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
+        }
+        OutputFormat::Compact => {
+            if result.data.is_empty() {
+                println!("No markets found.");
+                return;
             }
+            let rows: Vec<Vec<String>> = result.data.iter().map(|m| vec![
+                truncate(&m.question, 50),
+                if m.active { "Yes" } else { "No" }.into(),
+                m.tokens.len().to_string(),
+                m.minimum_tick_size.to_string(),
+            ]).collect();
+            print_compact_table(&["Question", "Active", "Tokens", "Tick"], rows);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(result).unwrap());
@@ -474,9 +526,7 @@ pub fn print_simplified_markets(result: &Page<SimplifiedMarketResponse>, output:
                 .data
                 .iter()
                 .map(|m| Row {
-                    condition_id: m
-                        .condition_id
-                        .map_or("—".into(), |c| truncate(&c.to_string(), 14)),
+                    condition_id: m.condition_id.map_or("—".into(), |c| truncate(&c.to_string(), 14)),
                     tokens: m.tokens.len().to_string(),
                     active: if m.active { "Yes" } else { "No" }.into(),
                     closed: if m.closed { "Yes" } else { "No" }.into(),
@@ -485,9 +535,22 @@ pub fn print_simplified_markets(result: &Page<SimplifiedMarketResponse>, output:
                 .collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
-            if result.next_cursor != END_CURSOR {
-                println!("Next cursor: {}", result.next_cursor);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
+        }
+        OutputFormat::Compact => {
+            if result.data.is_empty() {
+                println!("No markets found.");
+                return;
             }
+            let rows: Vec<Vec<String>> = result.data.iter().map(|m| vec![
+                m.condition_id.map_or("—".into(), |c| truncate(&c.to_string(), 14)),
+                m.tokens.len().to_string(),
+                if m.active { "Yes" } else { "No" }.into(),
+                if m.closed { "Yes" } else { "No" }.into(),
+                if m.accepting_orders { "Yes" } else { "No" }.into(),
+            ]).collect();
+            print_compact_table(&["Cond ID", "Tokens", "Active", "Closed", "Orders"], rows);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(result).unwrap());
@@ -497,7 +560,7 @@ pub fn print_simplified_markets(result: &Page<SimplifiedMarketResponse>, output:
 
 pub fn print_tick_size(result: &TickSizeResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Tick size: {}", result.minimum_tick_size.as_decimal());
         }
         OutputFormat::Json => {
@@ -514,7 +577,7 @@ pub fn print_tick_size(result: &TickSizeResponse, output: &OutputFormat) {
 
 pub fn print_fee_rate(result: &FeeRateResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Fee rate: {} bps", result.base_fee);
         }
         OutputFormat::Json => {
@@ -531,7 +594,7 @@ pub fn print_fee_rate(result: &FeeRateResponse, output: &OutputFormat) {
 
 pub fn print_neg_risk(result: &NegRiskResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("Neg risk: {}", result.neg_risk),
+        OutputFormat::Table | OutputFormat::Compact => println!("Neg risk: {}", result.neg_risk),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -560,14 +623,23 @@ pub fn print_price_history(result: &PriceHistoryResponse, output: &OutputFormat)
                 .iter()
                 .map(|p| Row {
                     timestamp: chrono::DateTime::from_timestamp(p.t, 0)
-                        .map_or(p.t.to_string(), |dt| {
-                            dt.format("%Y-%m-%d %H:%M").to_string()
-                        }),
+                        .map_or(p.t.to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string()),
                     price: p.p.to_string(),
                 })
                 .collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
+        }
+        OutputFormat::Compact => {
+            if result.history.is_empty() {
+                println!("No price history found.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.history.iter().map(|p| vec![
+                chrono::DateTime::from_timestamp(p.t, 0).map_or(p.t.to_string(), |dt| dt.format("%Y-%m-%d %H:%M").to_string()),
+                p.p.to_string(),
+            ]).collect();
+            print_compact_table(&["Timestamp", "Price"], rows);
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -582,7 +654,7 @@ pub fn print_price_history(result: &PriceHistoryResponse, output: &OutputFormat)
 
 pub fn print_server_time(timestamp: i64, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             let dt = chrono::DateTime::from_timestamp(timestamp, 0);
             match dt {
                 Some(dt) => {
@@ -605,7 +677,7 @@ pub fn print_server_time(timestamp: i64, output: &OutputFormat) {
 
 pub fn print_geoblock(result: &GeoblockResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Blocked: {}", result.blocked);
             println!("IP: {}", result.ip);
             println!("Country: {}", result.country);
@@ -665,9 +737,24 @@ pub fn print_orders(result: &Page<OpenOrderResponse>, output: &OutputFormat) {
                 .collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
-            if result.next_cursor != END_CURSOR {
-                println!("Next cursor: {}", result.next_cursor);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
+        }
+        OutputFormat::Compact => {
+            if result.data.is_empty() {
+                println!("No open orders.");
+                return;
             }
+            let rows: Vec<Vec<String>> = result.data.iter().map(|o| vec![
+                truncate(&o.id, 12),
+                o.side.to_string(),
+                o.price.to_string(),
+                o.original_size.to_string(),
+                o.size_matched.to_string(),
+                o.status.to_string(),
+                o.order_type.to_string(),
+            ]).collect();
+            print_compact_table(&["ID", "Side", "Price", "Size", "Match", "Status", "Type"], rows);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -716,6 +803,21 @@ pub fn print_order_detail(result: &OpenOrderResponse, output: &OutputFormat) {
             ];
             super::print_detail_table(rows);
         }
+        OutputFormat::Compact => {
+            let rows = vec![
+                ["ID".into(), result.id.clone()],
+                ["Status".into(), result.status.to_string()],
+                ["Market".into(), result.market.to_string()],
+                ["Side".into(), result.side.to_string()],
+                ["Price".into(), result.price.to_string()],
+                ["Size".into(), result.original_size.to_string()],
+                ["Matched".into(), result.size_matched.to_string()],
+                ["Outcome".into(), result.outcome.clone()],
+                ["Type".into(), result.order_type.to_string()],
+                ["Created".into(), result.created_at.format("%Y-%m-%d %H:%M").to_string()],
+            ];
+            print_compact_detail(rows);
+        }
         OutputFormat::Json => {
             let data = json!({
                 "id": result.id,
@@ -759,7 +861,7 @@ fn post_order_to_json(r: &PostOrderResponse) -> serde_json::Value {
 
 pub fn print_post_order_result(result: &PostOrderResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Order ID: {}", result.order_id);
             println!("Status: {}", result.status);
             println!("Success: {}", result.success);
@@ -782,7 +884,7 @@ pub fn print_post_order_result(result: &PostOrderResponse, output: &OutputFormat
 
 pub fn print_post_orders_result(results: &[PostOrderResponse], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             for (i, r) in results.iter().enumerate() {
                 if i > 0 {
                     println!("---");
@@ -799,7 +901,7 @@ pub fn print_post_orders_result(results: &[PostOrderResponse], output: &OutputFo
 
 pub fn print_cancel_result(result: &CancelOrdersResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if !result.canceled.is_empty() {
                 println!("Canceled: {}", result.canceled.join(", "));
             }
@@ -845,23 +947,33 @@ pub fn print_trades(result: &Page<TradeResponse>, output: &OutputFormat) {
                 #[tabled(rename = "Time")]
                 match_time: String,
             }
-            let rows: Vec<Row> = result
-                .data
-                .iter()
-                .map(|t| Row {
-                    id: truncate(&t.id, 12),
-                    side: t.side.to_string(),
-                    price: t.price.to_string(),
-                    size: t.size.to_string(),
-                    status: t.status.to_string(),
-                    match_time: t.match_time.format("%Y-%m-%d %H:%M").to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.data.iter().map(|t| Row {
+                id: truncate(&t.id, 12),
+                side: t.side.to_string(),
+                price: t.price.to_string(),
+                size: t.size.to_string(),
+                status: t.status.to_string(),
+                match_time: t.match_time.format("%Y-%m-%d %H:%M").to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
-            if result.next_cursor != END_CURSOR {
-                println!("Next cursor: {}", result.next_cursor);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
+        }
+        OutputFormat::Compact => {
+            if result.data.is_empty() {
+                println!("No trades found.");
+                return;
             }
+            let rows: Vec<Vec<String>> = result.data.iter().map(|t| vec![
+                truncate(&t.id, 12),
+                t.side.to_string(),
+                t.price.to_string(),
+                t.size.to_string(),
+                t.status.to_string(),
+                t.match_time.format("%Y-%m-%d %H:%M").to_string(),
+            ]).collect();
+            print_compact_table(&["ID", "Side", "Price", "Size", "Status", "Time"], rows);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -902,7 +1014,7 @@ pub fn print_balance(
     let divisor = Decimal::from(10u64.pow(USDC_DECIMALS));
     let human_balance = result.balance / divisor;
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if is_collateral {
                 println!("Balance: {}", format_decimal(human_balance));
             } else {
@@ -950,18 +1062,29 @@ pub fn print_notifications(result: &[NotificationResponse], output: &OutputForma
                 #[tabled(rename = "Size")]
                 size: String,
             }
-            let rows: Vec<Row> = result
-                .iter()
-                .map(|n| Row {
-                    notif_type: n.r#type.to_string(),
-                    question: truncate(&n.payload.question, 40),
-                    side: n.payload.side.to_string(),
-                    price: n.payload.price.to_string(),
-                    size: n.payload.matched_size.to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.iter().map(|n| Row {
+                notif_type: n.r#type.to_string(),
+                question: truncate(&n.payload.question, 40),
+                side: n.payload.side.to_string(),
+                price: n.payload.price.to_string(),
+                size: n.payload.matched_size.to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
+        }
+        OutputFormat::Compact => {
+            if result.is_empty() {
+                println!("No notifications.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.iter().map(|n| vec![
+                n.r#type.to_string(),
+                truncate(&n.payload.question, 40),
+                n.payload.side.to_string(),
+                n.payload.price.to_string(),
+                n.payload.matched_size.to_string(),
+            ]).collect();
+            print_compact_table(&["Type", "Question", "Side", "Price", "Size"], rows);
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -1004,21 +1127,29 @@ pub fn print_rewards(result: &Page<UserEarningResponse>, output: &OutputFormat) 
                 #[tabled(rename = "Rate")]
                 rate: String,
             }
-            let rows: Vec<Row> = result
-                .data
-                .iter()
-                .map(|e| Row {
-                    date: e.date.to_string(),
-                    condition_id: truncate(&e.condition_id.to_string(), 14),
-                    earnings: format_decimal(e.earnings),
-                    rate: e.asset_rate.to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.data.iter().map(|e| Row {
+                date: e.date.to_string(),
+                condition_id: truncate(&e.condition_id.to_string(), 14),
+                earnings: format_decimal(e.earnings),
+                rate: e.asset_rate.to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
-            if result.next_cursor != END_CURSOR {
-                println!("Next cursor: {}", result.next_cursor);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
+        }
+        OutputFormat::Compact => {
+            if result.data.is_empty() {
+                println!("No reward earnings found.");
+                return;
             }
+            let rows: Vec<Vec<String>> = result.data.iter().map(|e| vec![
+                e.date.to_string(),
+                truncate(&e.condition_id.to_string(), 14),
+                format_decimal(e.earnings),
+                e.asset_rate.to_string(),
+            ]).collect();
+            print_compact_table(&["Date", "Cond ID", "Earnings", "Rate"], rows);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -1043,7 +1174,7 @@ pub fn print_rewards(result: &Page<UserEarningResponse>, output: &OutputFormat) 
 
 pub fn print_earnings(result: &[TotalUserEarningResponse], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if result.is_empty() {
                 println!("No earnings data found.");
                 return;
@@ -1096,18 +1227,29 @@ pub fn print_user_earnings_markets(result: &[UserRewardsEarningResponse], output
                 #[tabled(rename = "Min Size")]
                 min_size: String,
             }
-            let rows: Vec<Row> = result
-                .iter()
-                .map(|e| Row {
-                    question: truncate(&e.question, 40),
-                    condition_id: truncate(&e.condition_id.to_string(), 14),
-                    earning_pct: format!("{}%", e.earning_percentage),
-                    max_spread: e.rewards_max_spread.to_string(),
-                    min_size: e.rewards_min_size.to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.iter().map(|e| Row {
+                question: truncate(&e.question, 40),
+                condition_id: truncate(&e.condition_id.to_string(), 14),
+                earning_pct: format!("{}%", e.earning_percentage),
+                max_spread: e.rewards_max_spread.to_string(),
+                min_size: e.rewards_min_size.to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
+        }
+        OutputFormat::Compact => {
+            if result.is_empty() {
+                println!("No earnings data found.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.iter().map(|e| vec![
+                truncate(&e.question, 40),
+                truncate(&e.condition_id.to_string(), 14),
+                format!("{}%", e.earning_percentage),
+                e.rewards_max_spread.to_string(),
+                e.rewards_min_size.to_string(),
+            ]).collect();
+            print_compact_table(&["Question", "Cond ID", "Earn%", "Spread", "Size"], rows);
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -1163,15 +1305,23 @@ pub fn print_reward_percentages(result: &RewardsPercentagesResponse, output: &Ou
                 #[tabled(rename = "Percentage")]
                 percentage: String,
             }
-            let rows: Vec<Row> = result
-                .iter()
-                .map(|(market, pct)| Row {
-                    market: truncate(market, 20),
-                    percentage: format!("{pct}%"),
-                })
-                .collect();
+            let rows: Vec<Row> = result.iter().map(|(market, pct)| Row {
+                market: truncate(market, 20),
+                percentage: format!("{pct}%"),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
+        }
+        OutputFormat::Compact => {
+            if result.is_empty() {
+                println!("No reward percentages found.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.iter().map(|(market, pct)| vec![
+                truncate(market, 20),
+                format!("{pct}%"),
+            ]).collect();
+            print_compact_table(&["Market", "Pct"], rows);
         }
         OutputFormat::Json => {
             let data: serde_json::Map<String, serde_json::Value> = result
@@ -1201,21 +1351,29 @@ pub fn print_current_rewards(result: &Page<CurrentRewardResponse>, output: &Outp
                 #[tabled(rename = "Configs")]
                 configs: String,
             }
-            let rows: Vec<Row> = result
-                .data
-                .iter()
-                .map(|r| Row {
-                    condition_id: truncate(&r.condition_id.to_string(), 14),
-                    max_spread: r.rewards_max_spread.to_string(),
-                    min_size: r.rewards_min_size.to_string(),
-                    configs: r.rewards_config.len().to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.data.iter().map(|r| Row {
+                condition_id: truncate(&r.condition_id.to_string(), 14),
+                max_spread: r.rewards_max_spread.to_string(),
+                min_size: r.rewards_min_size.to_string(),
+                configs: r.rewards_config.len().to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
-            if result.next_cursor != END_CURSOR {
-                println!("Next cursor: {}", result.next_cursor);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
+        }
+        OutputFormat::Compact => {
+            if result.data.is_empty() {
+                println!("No current rewards found.");
+                return;
             }
+            let rows: Vec<Vec<String>> = result.data.iter().map(|r| vec![
+                truncate(&r.condition_id.to_string(), 14),
+                r.rewards_max_spread.to_string(),
+                r.rewards_min_size.to_string(),
+                r.rewards_config.len().to_string(),
+            ]).collect();
+            print_compact_table(&["Cond ID", "Spread", "Min Size", "Configs"], rows);
+            if result.next_cursor != END_CURSOR { println!("Next cursor: {}", result.next_cursor); }
         }
         OutputFormat::Json => {
             let data: Vec<_> = result
@@ -1244,7 +1402,7 @@ pub fn print_current_rewards(result: &Page<CurrentRewardResponse>, output: &Outp
 
 pub fn print_market_reward(result: &Page<MarketRewardResponse>, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if result.data.is_empty() {
                 println!("No market reward data found.");
                 return;
@@ -1309,7 +1467,7 @@ pub fn print_market_reward(result: &Page<MarketRewardResponse>, output: &OutputF
 
 pub fn print_order_scoring(result: &OrderScoringResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("Scoring: {}", result.scoring),
+        OutputFormat::Table | OutputFormat::Compact => println!("Scoring: {}", result.scoring),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -1333,15 +1491,23 @@ pub fn print_orders_scoring(result: &OrdersScoringResponse, output: &OutputForma
                 #[tabled(rename = "Scoring")]
                 scoring: String,
             }
-            let rows: Vec<Row> = result
-                .iter()
-                .map(|(id, scoring)| Row {
-                    order_id: truncate(id, 16),
-                    scoring: scoring.to_string(),
-                })
-                .collect();
+            let rows: Vec<Row> = result.iter().map(|(id, scoring)| Row {
+                order_id: truncate(id, 16),
+                scoring: scoring.to_string(),
+            }).collect();
             let table = Table::new(rows).with(Style::rounded()).to_string();
             println!("{table}");
+        }
+        OutputFormat::Compact => {
+            if result.is_empty() {
+                println!("No scoring data.");
+                return;
+            }
+            let rows: Vec<Vec<String>> = result.iter().map(|(id, scoring)| vec![
+                truncate(id, 16),
+                scoring.to_string(),
+            ]).collect();
+            print_compact_table(&["Order ID", "Scoring"], rows);
         }
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(result).unwrap());
@@ -1358,7 +1524,7 @@ pub fn print_api_keys(result: &ApiKeysResponse, output: &OutputFormat) {
         .and_then(|s| s.strip_suffix(" }"))
         .unwrap_or(&debug);
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("API Keys: {keys_str}");
         }
         OutputFormat::Json => {
@@ -1372,7 +1538,7 @@ pub fn print_api_keys(result: &ApiKeysResponse, output: &OutputFormat) {
 
 pub fn print_delete_api_key(result: &serde_json::Value, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("API key deleted: {result}"),
+        OutputFormat::Table | OutputFormat::Compact => println!("API key deleted: {result}"),
         OutputFormat::Json => {
             println!("{}", serde_json::to_string_pretty(result).unwrap());
         }
@@ -1381,7 +1547,7 @@ pub fn print_delete_api_key(result: &serde_json::Value, output: &OutputFormat) {
 
 pub fn print_create_api_key(result: &Credentials, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("API Key: {}", result.key());
             println!("Secret: [redacted]");
             println!("Passphrase: [redacted]");
@@ -1402,7 +1568,7 @@ pub fn print_create_api_key(result: &Credentials, output: &OutputFormat) {
 
 pub fn print_account_status(result: &BanStatusResponse, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!(
                 "Account status: {}",
                 if result.closed_only {

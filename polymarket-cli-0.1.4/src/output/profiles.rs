@@ -1,6 +1,6 @@
 use polymarket_client_sdk::gamma::types::response::PublicProfile;
 
-use super::{detail_field, print_detail_table};
+use super::{detail_field, print_compact_detail, print_detail_table};
 
 pub fn print_profile_detail(p: &PublicProfile) {
     let mut rows: Vec<[String; 2]> = Vec::new();
@@ -38,4 +38,25 @@ pub fn print_profile_detail(p: &PublicProfile) {
     );
 
     print_detail_table(rows);
+}
+
+pub fn print_profile_compact(p: &PublicProfile) {
+    let mut rows: Vec<[String; 2]> = Vec::new();
+
+    detail_field!(rows, "Name", p.name.clone().unwrap_or_default());
+    detail_field!(rows, "Pseudonym", p.pseudonym.clone().unwrap_or_default());
+    detail_field!(rows, "Bio", p.bio.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Wallet",
+        p.proxy_wallet.map(|a| format!("{a}")).unwrap_or_default()
+    );
+    detail_field!(rows, "X", p.x_username.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Verified",
+        p.verified_badge.map(|v| v.to_string()).unwrap_or_default()
+    );
+
+    print_compact_detail(rows);
 }

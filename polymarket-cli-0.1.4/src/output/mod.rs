@@ -21,6 +21,7 @@ use tabled::settings::{Modify, Style, Width};
 pub enum OutputFormat {
     Table,
     Json,
+    Compact,
 }
 
 pub fn truncate(s: &str, max: usize) -> String {
@@ -55,6 +56,72 @@ pub fn print_detail_table(rows: Vec<[String; 2]>) {
         .with(Modify::new(Columns::last()).with(Width::wrap(80)))
         .to_string();
     println!("{table}");
+}
+
+/// Print key-value rows as clean `Key: Value` lines for compact output.
+pub fn print_compact_detail(rows: Vec<[String; 2]>) {
+    for [label, value] in &rows {
+        if value.is_empty() {
+            continue;
+        }
+        println!("{label}: {value}");
+    }
+}
+
+/// Print a compact, Telegram-friendly list.
+///
+/// The first column is treated as the **title** of each item and is printed
+/// on its own line.  Remaining columns are shown as `Label: value` pairs
+/// joined by ` · ` on the next line.  Items are separated by blank lines.
+///
+/// For single-column data (headers.len() == 1) each row is just printed as
+/// a plain line.
+pub fn print_compact_table(headers: &[&str], rows: Vec<Vec<String>>) {
+    if rows.is_empty() {
+        return;
+    }
+
+    // Single-column: just list values
+    if headers.len() == 1 {
+        for row in &rows {
+            if let Some(val) = row.first() {
+                println!("{val}");
+            }
+        }
+        return;
+    }
+
+    // Two-column: simple "Label: value" list without blank-line separation
+    if headers.len() == 2 {
+        for row in &rows {
+            let title = row.first().map(String::as_str).unwrap_or("—");
+            let val = row.get(1).map(String::as_str).unwrap_or("—");
+            println!("{title} — {val}");
+        }
+        return;
+    }
+
+    // Multi-column card style
+    for (i, row) in rows.iter().enumerate() {
+        if i > 0 {
+            println!();
+        }
+        // First column = title
+        let title = row.first().map(String::as_str).unwrap_or("—");
+        println!("▸ {title}");
+
+        // Remaining columns as labeled details
+        let details: Vec<String> = row
+            .iter()
+            .skip(1)
+            .zip(headers.iter().skip(1))
+            .filter(|(val, _)| !val.is_empty() && *val != "—")
+            .map(|(val, hdr)| format!("{hdr}: {val}"))
+            .collect();
+        if !details.is_empty() {
+            println!("  {}", details.join(" · "));
+        }
+    }
 }
 
 macro_rules! detail_field {

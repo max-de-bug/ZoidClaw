@@ -2,7 +2,10 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use polymarket_client_sdk::gamma::{self, types::request::TeamsRequest};
 
-use crate::output::sports::{print_sport_types, print_sports_table, print_teams_table};
+use crate::output::sports::{
+    print_sport_types, print_sport_types_compact, print_sports_compact, print_sports_table,
+    print_teams_compact, print_teams_table,
+};
 use crate::output::{OutputFormat, print_json};
 
 #[derive(Args)]
@@ -50,6 +53,7 @@ pub async fn execute(client: &gamma::Client, args: SportsArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_sports_table(&sports),
+                OutputFormat::Compact => print_sports_compact(&sports),
                 OutputFormat::Json => print_json(&sports)?,
             }
         }
@@ -59,6 +63,7 @@ pub async fn execute(client: &gamma::Client, args: SportsArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_sport_types(&types),
+                OutputFormat::Compact => print_sport_types_compact(&types),
                 OutputFormat::Json => print_json(&types)?,
             }
         }
@@ -82,6 +87,7 @@ pub async fn execute(client: &gamma::Client, args: SportsArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_teams_table(&teams),
+                OutputFormat::Compact => print_teams_compact(&teams),
                 OutputFormat::Json => print_json(&teams)?,
             }
         }

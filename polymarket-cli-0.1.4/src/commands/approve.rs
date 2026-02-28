@@ -142,7 +142,7 @@ async fn set(private_key: Option<&str>, output: OutputFormat) -> Result<()> {
     let targets = approval_targets()?;
     let total = targets.len() * 2;
 
-    if matches!(output, OutputFormat::Table) {
+    if matches!(output, OutputFormat::Table | OutputFormat::Compact) {
         println!("Approving contracts...\n");
     }
 
@@ -165,7 +165,7 @@ async fn set(private_key: Option<&str>, output: OutputFormat) -> Result<()> {
             ))?;
 
         match output {
-            OutputFormat::Table => print_tx_result(step, total, &label, tx_hash),
+            OutputFormat::Table | OutputFormat::Compact => print_tx_result(step, total, &label, tx_hash),
             OutputFormat::Json => results.push(serde_json::json!({
                 "step": step,
                 "type": "erc20",
@@ -189,7 +189,7 @@ async fn set(private_key: Option<&str>, output: OutputFormat) -> Result<()> {
             ))?;
 
         match output {
-            OutputFormat::Table => print_tx_result(step, total, &label, tx_hash),
+            OutputFormat::Table | OutputFormat::Compact => print_tx_result(step, total, &label, tx_hash),
             OutputFormat::Json => results.push(serde_json::json!({
                 "step": step,
                 "type": "erc1155",
@@ -200,7 +200,7 @@ async fn set(private_key: Option<&str>, output: OutputFormat) -> Result<()> {
     }
 
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("\nAll contracts approved. You're ready to trade.");
         }
         OutputFormat::Json => {

@@ -6,8 +6,8 @@ use polymarket_client_sdk::gamma::{
 };
 
 use super::is_numeric_id;
-use crate::output::events::{print_event_detail, print_events_table};
-use crate::output::tags::print_tags_table;
+use crate::output::events::{print_event_compact, print_event_detail, print_events_compact, print_events_table};
+use crate::output::tags::{print_tags_compact, print_tags_table};
 use crate::output::{OutputFormat, print_json};
 
 #[derive(Args)]
@@ -93,6 +93,7 @@ pub async fn execute(client: &gamma::Client, args: EventsArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_events_table(&events),
+                OutputFormat::Compact => print_events_compact(&events),
                 OutputFormat::Json => print_json(&events)?,
             }
         }
@@ -109,6 +110,7 @@ pub async fn execute(client: &gamma::Client, args: EventsArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_event_detail(&event),
+                OutputFormat::Compact => print_event_compact(&event),
                 OutputFormat::Json => print_json(&event)?,
             }
         }
@@ -119,6 +121,7 @@ pub async fn execute(client: &gamma::Client, args: EventsArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_tags_table(&tags),
+                OutputFormat::Compact => print_tags_compact(&tags),
                 OutputFormat::Json => print_json(&tags)?,
             }
         }

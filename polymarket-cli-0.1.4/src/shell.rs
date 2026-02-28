@@ -52,7 +52,7 @@ pub async fn run_shell() {
                                 OutputFormat::Json => {
                                     println!("{}", serde_json::json!({"error": e.to_string()}));
                                 }
-                                OutputFormat::Table => {
+                                OutputFormat::Table | OutputFormat::Compact => {
                                     eprintln!("Error: {e}");
                                 }
                             }

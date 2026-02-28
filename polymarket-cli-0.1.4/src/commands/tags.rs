@@ -9,7 +9,10 @@ use polymarket_client_sdk::gamma::{
 };
 
 use super::is_numeric_id;
-use crate::output::tags::{print_related_tags_table, print_tag_detail, print_tags_table};
+use crate::output::tags::{
+    print_related_tags_compact, print_related_tags_table, print_tag_compact, print_tag_detail,
+    print_tags_compact, print_tags_table,
+};
 use crate::output::{OutputFormat, print_json};
 
 #[derive(Args)]
@@ -79,6 +82,7 @@ pub async fn execute(client: &gamma::Client, args: TagsArgs, output: OutputForma
 
             match output {
                 OutputFormat::Table => print_tags_table(&tags),
+                OutputFormat::Compact => print_tags_compact(&tags),
                 OutputFormat::Json => print_json(&tags)?,
             }
         }
@@ -95,6 +99,7 @@ pub async fn execute(client: &gamma::Client, args: TagsArgs, output: OutputForma
 
             match output {
                 OutputFormat::Table => print_tag_detail(&tag),
+                OutputFormat::Compact => print_tag_compact(&tag),
                 OutputFormat::Json => print_json(&tag)?,
             }
         }
@@ -117,6 +122,7 @@ pub async fn execute(client: &gamma::Client, args: TagsArgs, output: OutputForma
 
             match output {
                 OutputFormat::Table => print_related_tags_table(&related),
+                OutputFormat::Compact => print_related_tags_compact(&related),
                 OutputFormat::Json => print_json(&related)?,
             }
         }
@@ -139,6 +145,7 @@ pub async fn execute(client: &gamma::Client, args: TagsArgs, output: OutputForma
 
             match output {
                 OutputFormat::Table => print_tags_table(&tags),
+                OutputFormat::Compact => print_tags_compact(&tags),
                 OutputFormat::Json => print_json(&tags)?,
             }
         }

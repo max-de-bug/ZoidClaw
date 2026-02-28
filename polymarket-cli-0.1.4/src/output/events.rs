@@ -2,7 +2,7 @@ use polymarket_client_sdk::gamma::types::response::Event;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{detail_field, format_decimal, print_detail_table, truncate};
+use super::{detail_field, format_decimal, print_compact_detail, print_compact_table, print_detail_table, truncate};
 
 #[derive(Tabled)]
 struct EventRow {
@@ -52,6 +52,21 @@ pub fn print_events_table(events: &[Event]) {
     let rows: Vec<EventRow> = events.iter().map(event_to_row).collect();
     let table = Table::new(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_events_compact(events: &[Event]) {
+    if events.is_empty() {
+        println!("No events found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = events
+        .iter()
+        .map(|e| {
+            let r = event_to_row(e);
+            vec![r.title, r.market_count, r.volume, r.status]
+        })
+        .collect();
+    print_compact_table(&["Title", "Mkts", "Volume", "Status"], rows);
 }
 
 #[allow(clippy::too_many_lines)]
@@ -167,6 +182,62 @@ pub fn print_event_detail(e: &Event) {
     );
 
     print_detail_table(rows);
+}
+
+pub fn print_event_compact(e: &Event) {
+    let mut rows: Vec<[String; 2]> = Vec::new();
+
+    detail_field!(rows, "ID", e.id.clone());
+    detail_field!(rows, "Title", e.title.clone().unwrap_or_default());
+    detail_field!(rows, "Category", e.category.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Volume",
+        e.volume.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Liquidity",
+        e.liquidity.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Vol 24h",
+        e.volume_24hr.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(rows, "Status", event_status(e).into());
+    detail_field!(
+        rows,
+        "Markets",
+        e.markets
+            .as_ref()
+            .map(|m| {
+                if m.is_empty() {
+                    "None".into()
+                } else {
+                    m.iter()
+                        .filter_map(|mkt| mkt.question.as_deref())
+                        .collect::<Vec<_>>()
+                        .join(" | ")
+                }
+            })
+            .unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Tags",
+        e.tags
+            .as_ref()
+            .map(|tags| {
+                tags.iter()
+                    .filter_map(|t| t.label.as_deref())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_default()
+    );
+
+    print_compact_detail(rows);
 }
 
 #[cfg(test)]

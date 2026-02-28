@@ -247,7 +247,7 @@ impl TelegramTransport {
                             &text.trim()[11..]
                         };
 
-                        if let Some(mut parsed_args) = shlex::split(args_str) {
+                        if let Some(parsed_args) = shlex::split(args_str) {
                             use crate::config::Config;
                             let config = Config::load().unwrap_or_default();
                             
@@ -263,12 +263,12 @@ impl TelegramTransport {
                                     let content = if output.is_empty() {
                                         "*(No output)*".to_string()
                                     } else {
-                                        format!("```text\n{}\n```", output)
+                                        output
                                     };
                                     let _ = _bot.send_message(msg.chat.id, content).await;
                                 }
                                 Err(e) => {
-                                    let err_msg = format!("❌ **CLI Error:**\n```text\n{}\n```", e);
+                                    let err_msg = format!("❌ CLI Error:\n{}", e);
                                     let _ = _bot.send_message(msg.chat.id, err_msg).await;
                                 }
                             }

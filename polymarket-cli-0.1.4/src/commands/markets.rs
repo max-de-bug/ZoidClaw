@@ -12,8 +12,8 @@ use polymarket_client_sdk::gamma::{
 };
 
 use super::is_numeric_id;
-use crate::output::markets::{print_market_detail, print_markets_table};
-use crate::output::tags::print_tags_table;
+use crate::output::markets::{print_market_compact, print_market_detail, print_markets_compact, print_markets_table};
+use crate::output::tags::{print_tags_compact, print_tags_table};
 use crate::output::{OutputFormat, print_json};
 
 #[derive(Args)]
@@ -104,6 +104,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_markets_table(&markets),
+                OutputFormat::Compact => print_markets_compact(&markets),
                 OutputFormat::Json => print_json(&markets)?,
             }
         }
@@ -120,6 +121,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_market_detail(&market),
+                OutputFormat::Compact => print_market_compact(&market),
                 OutputFormat::Json => print_json(&market)?,
             }
         }
@@ -142,6 +144,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_markets_table(&markets),
+                OutputFormat::Compact => print_markets_compact(&markets),
                 OutputFormat::Json => print_json(&markets)?,
             }
         }
@@ -152,6 +155,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_tags_table(&tags),
+                OutputFormat::Compact => print_tags_compact(&tags),
                 OutputFormat::Json => print_json(&tags)?,
             }
         }

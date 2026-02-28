@@ -2,7 +2,7 @@ use polymarket_client_sdk::gamma::types::response::{RelatedTag, Tag};
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{detail_field, print_detail_table, truncate};
+use super::{detail_field, print_compact_detail, print_compact_table, print_detail_table, truncate};
 
 #[derive(Tabled)]
 struct TagRow {
@@ -35,6 +35,21 @@ pub fn print_tags_table(tags: &[Tag]) {
     println!("{table}");
 }
 
+pub fn print_tags_compact(tags: &[Tag]) {
+    if tags.is_empty() {
+        println!("No tags found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = tags
+        .iter()
+        .map(|t| {
+            let r = tag_to_row(t);
+            vec![r.id, r.label, r.slug, r.carousel]
+        })
+        .collect();
+    print_compact_table(&["ID", "Label", "Slug", "Carousel"], rows);
+}
+
 #[derive(Tabled)]
 struct RelatedTagRow {
     #[tabled(rename = "ID")]
@@ -64,6 +79,21 @@ pub fn print_related_tags_table(tags: &[RelatedTag]) {
     let rows: Vec<RelatedTagRow> = tags.iter().map(related_tag_to_row).collect();
     let table = Table::new(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_related_tags_compact(tags: &[RelatedTag]) {
+    if tags.is_empty() {
+        println!("No related tags found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = tags
+        .iter()
+        .map(|r| {
+            let row = related_tag_to_row(r);
+            vec![row.id, row.tag_id, row.related_tag_id, row.rank]
+        })
+        .collect();
+    print_compact_table(&["ID", "Tag ID", "Related ID", "Rank"], rows);
 }
 
 #[allow(clippy::vec_init_then_push)]
@@ -100,4 +130,43 @@ pub fn print_tag_detail(t: &Tag) {
     );
 
     print_detail_table(rows);
+}
+
+pub fn print_tag_compact(t: &Tag) {
+    let mut rows: Vec<[String; 2]> = Vec::new();
+
+    detail_field!(rows, "ID", t.id.clone());
+    detail_field!(rows, "Label", t.label.clone().unwrap_or_default());
+    detail_field!(rows, "Slug", t.slug.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Carousel",
+        t.is_carousel.map(|v| v.to_string()).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Force Show",
+        t.force_show.map(|v| v.to_string()).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Force Hide",
+        t.force_hide.map(|v| v.to_string()).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Created",
+        t.created_at
+            .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Updated",
+        t.updated_at
+            .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_default()
+    );
+
+    print_compact_detail(rows);
 }

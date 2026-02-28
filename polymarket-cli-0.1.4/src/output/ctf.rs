@@ -20,7 +20,7 @@ pub fn print_tx_result(
             println!("{}", serde_json::to_string_pretty(&json)?);
             Ok(())
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             let rows = vec![
                 ["Operation".into(), operation.to_string()],
                 ["Tx Hash".into(), format!("{tx_hash}")],
@@ -45,7 +45,7 @@ pub fn print_condition_id(condition_id: B256, output: &OutputFormat) -> Result<(
             println!("{}", serde_json::to_string_pretty(&json)?);
             Ok(())
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Condition ID: {condition_id}");
             Ok(())
         }
@@ -61,7 +61,7 @@ pub fn print_collection_id(collection_id: B256, output: &OutputFormat) -> Result
             println!("{}", serde_json::to_string_pretty(&json)?);
             Ok(())
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Collection ID: {collection_id}");
             Ok(())
         }
@@ -77,7 +77,7 @@ pub fn print_position_id(position_id: U256, output: &OutputFormat) -> Result<()>
             println!("{}", serde_json::to_string_pretty(&json)?);
             Ok(())
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             println!("Position ID: {position_id}");
             Ok(())
         }

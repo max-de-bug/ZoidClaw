@@ -384,17 +384,26 @@ async fn cmd_bot() -> Result<()> {
         std::fs::create_dir_all(&config_dir)?;
     }
 
-    // Try to create the lock file. If it already exists, another instance might be running.
-    // NOTE: This is a simple advisory lock. A crash might leave the file behind.
-    // A more robust solution would check the PID inside, but for a private bot,
-    // this covers the 90% case of forgotten terminal windows.
+    // Try to create the lock file. Check if the PID inside is actually running.
     if lock_path.exists() {
-        anyhow::bail!(
-            "\n  \x1b[31m❌ Another instance of zoidclaw is already running!\x1b[0m\n\
-             \n     If you are sure it is not running, delete this file:\n\
-             \n     {}\n",
-            lock_path.display()
-        );
+        if let Ok(pid_str) = std::fs::read_to_string(&lock_path) {
+            if let Ok(pid) = pid_str.trim().parse::<u32>() {
+                use sysinfo::{Pid, System};
+                let mut sys = System::new();
+                sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+                if sys.process(Pid::from_u32(pid)).is_some() {
+                    anyhow::bail!(
+                        "\n  \x1b[31m❌ Another instance of zoidclaw is already running (PID {})!\x1b[0m\n\
+                         \n     If you are sure it is not running, stop it or delete this file:\n\
+                         \n     {}\n",
+                        pid,
+                        lock_path.display()
+                    );
+                }
+            }
+        }
+        // If we reach here, the process is dead or invalid, so delete the stale lock.
+        let _ = std::fs::remove_file(&lock_path);
     }
     std::fs::write(&lock_path, std::process::id().to_string())?;
 

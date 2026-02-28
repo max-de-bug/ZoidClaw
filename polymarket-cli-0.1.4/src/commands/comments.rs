@@ -1,5 +1,5 @@
 use super::parse_address;
-use crate::output::comments::{print_comment_detail, print_comments_table};
+use crate::output::comments::{print_comment_compact, print_comment_detail, print_comments_compact, print_comments_table};
 use crate::output::{OutputFormat, print_json};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -119,6 +119,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_comments_table(&comments),
+                OutputFormat::Compact => print_comments_compact(&comments),
                 OutputFormat::Json => print_json(&comments)?,
             }
         }
@@ -133,6 +134,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_comment_detail(comment),
+                OutputFormat::Compact => print_comment_compact(comment),
                 OutputFormat::Json => print_json(&comment)?,
             }
         }
@@ -157,6 +159,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_comments_table(&comments),
+                OutputFormat::Compact => print_comments_compact(&comments),
                 OutputFormat::Json => print_json(&comments)?,
             }
         }

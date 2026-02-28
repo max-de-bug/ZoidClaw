@@ -63,7 +63,7 @@ pub fn print_approval_status(statuses: &[ApprovalStatus], output: &OutputFormat)
             println!("{}", serde_json::to_string_pretty(&json)?);
             Ok(())
         }
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             let rows: Vec<ApprovalRow> = statuses
                 .iter()
                 .map(|s| ApprovalRow {

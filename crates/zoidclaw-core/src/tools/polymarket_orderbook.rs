@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::{debug, error};
+use tracing::debug;
 
 use super::polymarket_common::{run_polymarket_cli, truncate};
 use super::Tool;
@@ -31,11 +31,6 @@ struct OrderBookResponse {
     asks: Vec<OrderBookLevel>,
 }
 
-#[derive(Debug, Deserialize)]
-struct LastTradeResponse {
-    #[serde(default)]
-    price: Option<String>,
-}
 
 #[derive(Debug, Deserialize)]
 struct ClobMarketResponse {
@@ -53,11 +48,6 @@ struct ClobMarketResponse {
     neg_risk: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-struct TickSizeResponse {
-    #[serde(default)]
-    minimum_tick_size: Option<String>,
-}
 
 // ── PolymarketOrderbookTool ────────────────────────────────────────
 
@@ -358,10 +348,7 @@ impl Tool for PolymarketTickSizeTool {
         // Actually, let's just use the market info via condition ID if we had it.
         // But the user tool expects token_id.
         // I'll check if CLI has 'clob info' or similar.
-        // For now, I'll use clob price which often shows tick increments in its metadata or error messages.
-        // Actually, the best way is to use the CLI's specialized commands if they exist.
-
-        let cli_args = vec!["clob", "book", "--token", token_id, "--output", "json"];
+        let _cli_args = vec!["clob", "book", "--token", token_id, "--output", "json"];
 
         let output_json = match run_polymarket_cli(&self.config, &cli_args).await {
             Ok(out) => out,

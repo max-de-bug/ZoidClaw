@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use tracing::{debug, error};
+use tracing::debug;
 
 use super::polymarket_common::run_polymarket_cli;
 use super::Tool;
@@ -15,23 +15,6 @@ use crate::config::PolymarketConfig;
 
 // ── Types ──────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
-struct PriceResponse {
-    #[serde(default)]
-    price: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct MidpointResponse {
-    #[serde(default)]
-    mid: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SpreadResponse {
-    #[serde(default)]
-    spread: Option<String>,
-}
 
 #[derive(Debug, Deserialize)]
 struct PriceHistoryPoint {

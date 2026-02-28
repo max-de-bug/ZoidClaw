@@ -1,5 +1,5 @@
 use super::parse_address;
-use crate::output::profiles::print_profile_detail;
+use crate::output::profiles::{print_profile_compact, print_profile_detail};
 use crate::output::{OutputFormat, print_json};
 use anyhow::Result;
 use clap::{Args, Subcommand};
@@ -33,6 +33,7 @@ pub async fn execute(
 
             match output {
                 OutputFormat::Table => print_profile_detail(&profile),
+                OutputFormat::Compact => print_profile_compact(&profile),
                 OutputFormat::Json => print_json(&profile)?,
             }
         }

@@ -76,7 +76,7 @@ async fn main() -> ExitCode {
             OutputFormat::Json => {
                 println!("{}", serde_json::json!({"error": e.to_string()}));
             }
-            OutputFormat::Table => {
+            OutputFormat::Table | OutputFormat::Compact => {
                 eprintln!("Error: {e:?}");
             }
         }
@@ -193,7 +193,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
                 OutputFormat::Json => {
                     println!("{}", serde_json::json!({"status": status}));
                 }
-                OutputFormat::Table => {
+                OutputFormat::Table | OutputFormat::Compact => {
                     println!("API Status: {status}");
                 }
             }

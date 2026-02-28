@@ -20,7 +20,7 @@ fn format_market(m: &Market) -> String {
 
 pub fn print_positions(positions: &[Position], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if positions.is_empty() {
                 println!("No positions found.");
                 return;
@@ -85,7 +85,7 @@ pub fn print_positions(positions: &[Position], output: &OutputFormat) {
 
 pub fn print_closed_positions(positions: &[ClosedPosition], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if positions.is_empty() {
                 println!("No closed positions found.");
                 return;
@@ -139,7 +139,7 @@ pub fn print_closed_positions(positions: &[ClosedPosition], output: &OutputForma
 
 pub fn print_value(values: &[Value], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if values.is_empty() {
                 println!("No value data found.");
                 return;
@@ -173,7 +173,7 @@ pub fn print_value(values: &[Value], output: &OutputFormat) {
 
 pub fn print_traded(t: &Traded, output: &OutputFormat) {
     match output {
-        OutputFormat::Table => println!("{}: {} markets traded", t.user, t.traded),
+        OutputFormat::Table | OutputFormat::Compact => println!("{}: {} markets traded", t.user, t.traded),
         OutputFormat::Json => {
             println!(
                 "{}",
@@ -189,7 +189,7 @@ pub fn print_traded(t: &Traded, output: &OutputFormat) {
 
 pub fn print_trades(trades: &[Trade], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if trades.is_empty() {
                 println!("No trades found.");
                 return;
@@ -246,7 +246,7 @@ pub fn print_trades(trades: &[Trade], output: &OutputFormat) {
 
 pub fn print_activity(activity: &[Activity], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if activity.is_empty() {
                 println!("No activity found.");
                 return;
@@ -299,7 +299,7 @@ pub fn print_activity(activity: &[Activity], output: &OutputFormat) {
 
 pub fn print_holders(meta_holders: &[MetaHolder], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if meta_holders.is_empty() {
                 println!("No holders found.");
                 return;
@@ -361,7 +361,7 @@ pub fn print_holders(meta_holders: &[MetaHolder], output: &OutputFormat) {
 
 pub fn print_open_interest(oi: &[OpenInterest], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if oi.is_empty() {
                 println!("No open interest data found.");
                 return;
@@ -395,7 +395,7 @@ pub fn print_open_interest(oi: &[OpenInterest], output: &OutputFormat) {
 
 pub fn print_live_volume(volume: &[LiveVolume], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if volume.is_empty() {
                 println!("No volume data found.");
                 return;
@@ -440,7 +440,7 @@ pub fn print_live_volume(volume: &[LiveVolume], output: &OutputFormat) {
 
 pub fn print_leaderboard(entries: &[TraderLeaderboardEntry], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if entries.is_empty() {
                 println!("No leaderboard entries found.");
                 return;
@@ -488,7 +488,7 @@ pub fn print_leaderboard(entries: &[TraderLeaderboardEntry], output: &OutputForm
 
 pub fn print_builder_leaderboard(entries: &[BuilderLeaderboardEntry], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if entries.is_empty() {
                 println!("No builder leaderboard entries found.");
                 return;
@@ -536,7 +536,7 @@ pub fn print_builder_leaderboard(entries: &[BuilderLeaderboardEntry], output: &O
 
 pub fn print_builder_volume(entries: &[BuilderVolumeEntry], output: &OutputFormat) {
     match output {
-        OutputFormat::Table => {
+        OutputFormat::Table | OutputFormat::Compact => {
             if entries.is_empty() {
                 println!("No builder volume data found.");
                 return;

@@ -3,7 +3,7 @@ use polymarket_client_sdk::types::Decimal;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{detail_field, format_decimal, print_detail_table, truncate};
+use super::{detail_field, format_decimal, print_compact_detail, print_compact_table, print_detail_table, truncate};
 
 #[derive(Tabled)]
 struct MarketRow {
@@ -54,6 +54,21 @@ pub fn print_markets_table(markets: &[Market]) {
     let rows: Vec<MarketRow> = markets.iter().map(market_to_row).collect();
     let table = Table::new(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_markets_compact(markets: &[Market]) {
+    if markets.is_empty() {
+        println!("No markets found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = markets
+        .iter()
+        .map(|m| {
+            let r = market_to_row(m);
+            vec![r.question, r.price_yes, r.volume, r.status]
+        })
+        .collect();
+    print_compact_table(&["Question", "Price", "Volume", "Status"], rows);
 }
 
 pub fn print_market_detail(m: &Market) {
@@ -159,6 +174,74 @@ pub fn print_market_detail(m: &Market) {
     );
 
     print_detail_table(rows);
+}
+
+pub fn print_market_compact(m: &Market) {
+    let mut rows: Vec<[String; 2]> = Vec::new();
+
+    detail_field!(rows, "ID", m.id.clone());
+    detail_field!(rows, "Question", m.question.clone().unwrap_or_default());
+    detail_field!(rows, "Slug", m.slug.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Outcomes",
+        m.outcomes
+            .as_ref()
+            .map(|o| o.join(", "))
+            .unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Prices",
+        m.outcome_prices
+            .as_ref()
+            .map(|p| p
+                .iter()
+                .map(|v| format!("{v:.4}"))
+                .collect::<Vec<_>>()
+                .join(", "))
+            .unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Volume",
+        m.volume_num.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Liquidity",
+        m.liquidity_num.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Vol 24h",
+        m.volume_24hr.map(format_decimal).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Best Bid",
+        m.best_bid.map(|v| format!("{v:.4}")).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Best Ask",
+        m.best_ask.map(|v| format!("{v:.4}")).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Spread",
+        m.spread.map(|v| format!("{v:.4}")).unwrap_or_default()
+    );
+    detail_field!(
+        rows,
+        "Last Trade",
+        m.last_trade_price
+            .map(|v| format!("{v:.4}"))
+            .unwrap_or_default()
+    );
+    detail_field!(rows, "Status", market_status(m).into());
+
+    print_compact_detail(rows);
 }
 
 #[cfg(test)]

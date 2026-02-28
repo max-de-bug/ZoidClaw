@@ -2,7 +2,7 @@ use polymarket_client_sdk::gamma::types::response::Comment;
 use tabled::settings::Style;
 use tabled::{Table, Tabled};
 
-use super::{detail_field, print_detail_table, truncate};
+use super::{detail_field, print_compact_detail, print_compact_table, print_detail_table, truncate};
 
 #[derive(Tabled)]
 struct CommentRow {
@@ -49,6 +49,21 @@ pub fn print_comments_table(comments: &[Comment]) {
     let rows: Vec<CommentRow> = comments.iter().map(comment_to_row).collect();
     let table = Table::new(rows).with(Style::rounded()).to_string();
     println!("{table}");
+}
+
+pub fn print_comments_compact(comments: &[Comment]) {
+    if comments.is_empty() {
+        println!("No comments found.");
+        return;
+    }
+    let rows: Vec<Vec<String>> = comments
+        .iter()
+        .map(|c| {
+            let r = comment_to_row(c);
+            vec![r.author, r.body, r.reactions, r.created]
+        })
+        .collect();
+    print_compact_table(&["Author", "Body", "Reacts", "Created"], rows);
 }
 
 pub fn print_comment_detail(c: &Comment) {
@@ -110,4 +125,27 @@ pub fn print_comment_detail(c: &Comment) {
     );
 
     print_detail_table(rows);
+}
+
+pub fn print_comment_compact(c: &Comment) {
+    let mut rows: Vec<[String; 2]> = Vec::new();
+
+    detail_field!(rows, "ID", c.id.clone());
+    detail_field!(rows, "Author", comment_author(c));
+    detail_field!(rows, "Body", c.body.clone().unwrap_or_default());
+    detail_field!(
+        rows,
+        "Reactions",
+        c.reaction_count
+            .map_or_else(|| "—".into(), |n| n.to_string())
+    );
+    detail_field!(
+        rows,
+        "Created",
+        c.created_at
+            .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_default()
+    );
+
+    print_compact_detail(rows);
 }

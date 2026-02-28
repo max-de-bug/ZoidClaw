@@ -5,7 +5,7 @@ use polymarket_client_sdk::gamma::{
     types::request::{SeriesByIdRequest, SeriesListRequest},
 };
 
-use crate::output::series::{print_series_detail, print_series_table};
+use crate::output::series::{print_series_compact, print_series_detail, print_series_detail_compact, print_series_table};
 use crate::output::{OutputFormat, print_json};
 
 #[derive(Args)]
@@ -67,6 +67,7 @@ pub async fn execute(client: &gamma::Client, args: SeriesArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_series_table(&series),
+                OutputFormat::Compact => print_series_compact(&series),
                 OutputFormat::Json => print_json(&series)?,
             }
         }
@@ -77,6 +78,7 @@ pub async fn execute(client: &gamma::Client, args: SeriesArgs, output: OutputFor
 
             match output {
                 OutputFormat::Table => print_series_detail(&series),
+                OutputFormat::Compact => print_series_detail_compact(&series),
                 OutputFormat::Json => print_json(&series)?,
             }
         }

@@ -22,6 +22,7 @@ anyhow = { workspace = true }
 dirs = { workspace = true }
 tokio-util = { workspace = true }
 futures = "0.3"
+sysinfo = "0.38.2"
 
 [features]
 default = ["telegram"]  # Discord is opt-in: cargo build --features discord
