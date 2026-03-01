@@ -3,12 +3,12 @@
 //! Loads typed configuration from `~/.zoidclaw/config.json`.
 //! All fields use `serde` for zero-boilerplate deserialization.
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Root configuration.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 #[derive(Default)]
 pub struct Config {
@@ -71,6 +71,25 @@ impl Config {
         let content = std::fs::read_to_string(path)?;
         let config: Config = serde_json::from_str(&content)?;
         Ok(config)
+    }
+
+    /// Save configuration to disk.
+    ///
+    /// Writes to the first existing config path, or `config.json` as fallback.
+    pub fn save(&self) -> anyhow::Result<()> {
+        let paths = vec![
+            PathBuf::from("config.json"),
+            Self::ferrobot_path(),
+            Self::default_path(),
+        ];
+
+        let target = paths.iter().find(|p| p.exists()).cloned()
+            .unwrap_or_else(|| PathBuf::from("config.json"));
+
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(&target, json)?;
+        tracing::info!("Config saved to {}", target.display());
+        Ok(())
     }
 
     /// Get the path to `~/.ferrobot/config.json`.
@@ -185,7 +204,7 @@ impl Config {
 
 // ── Provider Configuration ──────────────────────────────────────────
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ProviderEntry {
     pub api_key: String,
@@ -195,7 +214,7 @@ pub struct ProviderEntry {
     pub extra_headers: HashMap<String, String>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProvidersConfig {
     pub openrouter: Option<ProviderEntry>,
@@ -243,7 +262,7 @@ impl ProvidersConfig {
 
 // ── Agent Configuration ─────────────────────────────────────────────
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AgentDefaults {
     pub workspace: String,
@@ -265,7 +284,7 @@ impl Default for AgentDefaults {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct AgentsConfig {
     pub defaults: AgentDefaults,
@@ -273,7 +292,7 @@ pub struct AgentsConfig {
 
 // ── Tools Configuration ─────────────────────────────────────────────
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ToolsConfig {
     pub restrict_to_workspace: bool,
@@ -301,7 +320,7 @@ impl Default for ToolsConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PumpFunStreamConfig {
     pub enabled: bool,
@@ -311,7 +330,7 @@ pub struct PumpFunStreamConfig {
 // ── Betting Configuration ───────────────────────────────────────────
 
 /// Configuration for the autonomous Polymarket betting engine.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct BettingConfig {
     /// Whether the betting engine is enabled at startup.
@@ -350,7 +369,7 @@ impl Default for BettingConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct PolymarketConfig {
     /// Polygon wallet private key (hex with 0x prefix).
@@ -371,7 +390,7 @@ impl Default for PolymarketConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct WebSearchConfig {
     pub api_key: String,
@@ -387,7 +406,7 @@ impl Default for WebSearchConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ExecConfig {
     pub timeout_seconds: u64,
@@ -405,14 +424,14 @@ impl Default for ExecConfig {
 
 // ── Channels Configuration ──────────────────────────────────────────
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ChannelsConfig {
     pub telegram: Option<TelegramConfig>,
     pub discord: Option<DiscordConfig>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TelegramConfig {
     pub enabled: bool,
@@ -420,7 +439,7 @@ pub struct TelegramConfig {
     pub allow_from: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DiscordConfig {
     pub enabled: bool,
@@ -430,7 +449,7 @@ pub struct DiscordConfig {
 
 // ── Gateway Configuration ───────────────────────────────────────────
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct GatewayConfig {
     pub host: String,

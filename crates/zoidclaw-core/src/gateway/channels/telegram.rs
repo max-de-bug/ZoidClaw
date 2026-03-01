@@ -230,6 +230,205 @@ impl TelegramTransport {
                     let normalized = text.trim();
                     let lower = normalized.to_lowercase();
 
+                    // ── FAST PATH: /config command (bypass LLM) ──
+                    if lower == "/config" || lower == "config"
+                        || lower.starts_with("/config ") || lower.starts_with("config ")
+                    {
+                        let args_str = if lower == "/config" || lower == "config" {
+                            ""
+                        } else if normalized.starts_with('/') {
+                            normalized[8..].trim() // skip "/config "
+                        } else {
+                            normalized[7..].trim() // skip "config "
+                        };
+                        let args_lower = args_str.to_lowercase();
+
+                        use crate::config::Config;
+                        let mut config = Config::load().unwrap_or_default();
+
+                        if args_str.is_empty() || args_lower == "help" || args_lower == "--help" {
+                            // Show current config summary with masked keys
+                            let mask = |s: &str| -> String {
+                                if s.is_empty() || s.contains("YOUR_") { return "❌ not set".into(); }
+                                if s.len() <= 8 { return "••••••••".into(); }
+                                format!("{}••••{}", &s[..4], &s[s.len()-4..])
+                            };
+
+                            let groq_key = config.providers.groq.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
+                            let openai_key = config.providers.openai.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
+                            let anthropic_key = config.providers.anthropic.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
+                            let gemini_key = config.providers.gemini.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
+                            let openrouter_key = config.providers.openrouter.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
+                            let poly_key = config.tools.polymarket.private_key.as_deref().map(|k| mask(k)).unwrap_or("❌ not set".into());
+                            let solana_key = config.tools.solana_private_key.as_deref().map(|k| mask(k)).unwrap_or("❌ not set".into());
+
+                            let summary = format!(
+"⚙️ ZoidClaw Configuration
+
+━━━ 🔑 LLM Providers ━━━
+Groq: {}
+OpenAI: {}
+Anthropic: {}
+Gemini: {}
+OpenRouter: {}
+
+━━━ 🤖 Agent ━━━
+Model: {}
+Max Tokens: {}
+
+━━━ 🔐 Wallet Keys ━━━
+Polymarket: {}
+Solana: {}
+
+━━━ 🎰 Betting ━━━
+Enabled: {}
+Max Bet: ${}
+Daily Loss Limit: ${}
+
+━━━ ✏️ Set a value ━━━
+/config set groq_key <KEY>
+/config set openai_key <KEY>
+/config set anthropic_key <KEY>
+/config set gemini_key <KEY>
+/config set openrouter_key <KEY>
+/config set polymarket_key <KEY>
+/config set solana_key <KEY>
+/config set model <MODEL>
+/config set max_bet <AMOUNT>
+/config set daily_limit <AMOUNT>",
+                                groq_key, openai_key, anthropic_key, gemini_key, openrouter_key,
+                                config.agents.defaults.model,
+                                config.agents.defaults.max_tokens,
+                                poly_key, solana_key,
+                                if config.tools.betting.enabled { "🟢" } else { "🔴" },
+                                config.tools.betting.max_bet_size_usdc,
+                                config.tools.betting.daily_loss_limit_usdc,
+                            );
+                            let _ = _bot.send_message(msg.chat.id, summary).await;
+                            return respond(());
+                        }
+
+                        // Handle "set <key> <value>"
+                        if args_lower.starts_with("set ") {
+                            // ── SECURITY: Delete the user's message immediately ──
+                            // API keys should never persist in Telegram chat history.
+                            let _ = _bot.delete_message(msg.chat.id, msg.id).await;
+
+                            let set_args = args_str[4..].trim();
+                            let parts: Vec<&str> = set_args.splitn(2, ' ').collect();
+                            if parts.len() < 2 {
+                                let _ = _bot.send_message(msg.chat.id, "❌ Usage: /config set <key> <value>\n🔒 Your message was auto-deleted for security.").await;
+                                return respond(());
+                            }
+                            let key = parts[0].to_lowercase();
+                            let value = parts[1].trim().to_string();
+
+                            // Determine if this key holds a sensitive secret
+                            let is_secret = matches!(key.as_str(),
+                                "groq_key" | "openai_key" | "anthropic_key"
+                                | "gemini_key" | "openrouter_key"
+                                | "polymarket_key" | "solana_key"
+                            );
+
+                            // Encrypt secrets before storing
+                            let store_value = if is_secret {
+                                match crate::vault::encrypt(&value) {
+                                    Ok(encrypted) => encrypted,
+                                    Err(e) => {
+                                        let _ = _bot.send_message(msg.chat.id, format!("❌ Encryption failed: {}\n🔒 Your message was auto-deleted.", e)).await;
+                                        return respond(());
+                                    }
+                                }
+                            } else {
+                                value.clone()
+                            };
+
+                            let preview = if value.len() > 4 {
+                                format!("{}••••", &value[..4])
+                            } else {
+                                "••••••••".to_string()
+                            };
+
+                            let result = match key.as_str() {
+                                "groq_key" => {
+                                    let entry = config.providers.groq.get_or_insert_with(Default::default);
+                                    entry.api_key = store_value;
+                                    Ok(format!("Groq API key set ({})", preview))
+                                }
+                                "openai_key" => {
+                                    let entry = config.providers.openai.get_or_insert_with(Default::default);
+                                    entry.api_key = store_value;
+                                    Ok(format!("OpenAI API key set ({})", preview))
+                                }
+                                "anthropic_key" => {
+                                    let entry = config.providers.anthropic.get_or_insert_with(Default::default);
+                                    entry.api_key = store_value;
+                                    Ok(format!("Anthropic API key set ({})", preview))
+                                }
+                                "gemini_key" => {
+                                    let entry = config.providers.gemini.get_or_insert_with(Default::default);
+                                    entry.api_key = store_value;
+                                    Ok(format!("Gemini API key set ({})", preview))
+                                }
+                                "openrouter_key" => {
+                                    let entry = config.providers.openrouter.get_or_insert_with(Default::default);
+                                    entry.api_key = store_value;
+                                    Ok(format!("OpenRouter API key set ({})", preview))
+                                }
+                                "polymarket_key" => {
+                                    config.tools.polymarket.private_key = Some(store_value);
+                                    Ok(format!("Polymarket private key set ({})", preview))
+                                }
+                                "solana_key" => {
+                                    config.tools.solana_private_key = Some(store_value);
+                                    Ok(format!("Solana private key set ({})", preview))
+                                }
+                                "model" => {
+                                    config.agents.defaults.model = value.clone();
+                                    Ok(format!("Model set to: {}", value))
+                                }
+                                "max_bet" => {
+                                    match value.parse::<f64>() {
+                                        Ok(v) => { config.tools.betting.max_bet_size_usdc = v; Ok(format!("Max bet set to ${}", v)) }
+                                        Err(_) => Err("Invalid number".to_string())
+                                    }
+                                }
+                                "daily_limit" => {
+                                    match value.parse::<f64>() {
+                                        Ok(v) => { config.tools.betting.daily_loss_limit_usdc = v; Ok(format!("Daily loss limit set to ${}", v)) }
+                                        Err(_) => Err("Invalid number".to_string())
+                                    }
+                                }
+                                _ => Err(format!("Unknown key: `{}`. Use /config to see available keys.", key))
+                            };
+
+                            let security_note = if is_secret {
+                                "\n🔒 Message auto-deleted · 🔐 Value encrypted (AES-256-GCM)"
+                            } else {
+                                ""
+                            };
+
+                            match result {
+                                Ok(success_msg) => {
+                                    match config.save() {
+                                        Ok(()) => {
+                                            let _ = _bot.send_message(msg.chat.id, format!("✅ {} — saved to config.json{}\n⚠️ Restart the bot to apply changes.", success_msg, security_note)).await;
+                                        }
+                                        Err(e) => {
+                                            let _ = _bot.send_message(msg.chat.id, format!("⚠️ {} — but failed to save: {}", success_msg, e)).await;
+                                        }
+                                    }
+                                }
+                                Err(err_msg) => {
+                                    let _ = _bot.send_message(msg.chat.id, format!("❌ {}", err_msg)).await;
+                                }
+                            }
+                            return respond(());
+                        }
+
+                        let _ = _bot.send_message(msg.chat.id, "❌ Unknown config command. Use /config for help.").await;
+                        return respond(());
+                    }
                     // ── FAST PATH: /polymarket CLI commands (bypass LLM) ──
                     if lower == "polymarket" || lower == "/polymarket"
                         || lower.starts_with("polymarket ") || lower.starts_with("/polymarket ")

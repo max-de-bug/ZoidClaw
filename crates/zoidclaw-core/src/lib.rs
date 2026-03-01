@@ -56,3 +56,4 @@ pub mod provider;
 pub mod service;
 pub mod session;
 pub mod tools;
+pub mod vault;

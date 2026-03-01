@@ -37,6 +37,8 @@ tokio-tungstenite = { workspace = true }
 teloxide = { workspace = true, optional = true }
 serenity = { workspace = true, optional = true }
 shlex = "1.3.0"
+aes-gcm = { workspace = true }
+rand = { workspace = true }
 
 [features]
 default = ["telegram"]
