@@ -227,51 +227,66 @@ impl TelegramTransport {
                 }
 
                 if let Some(text) = msg.text() {
-                    // FAST PATH: bypass the LLM entirely for `polymarket` CLI commands
-                    let normalized_text = text.trim();
-                    if normalized_text.to_lowercase() == "polymarket wallet show" || normalized_text.to_lowercase() == "check my polymarket proxy wallet balance" {
-                        use crate::config::Config;
-                        let config = Config::load().unwrap_or_default();
-                        
-                        use crate::tools::Tool;
-                        let tool = crate::tools::polymarket_wallet::PolymarketWalletTool::new(config.tools.polymarket.clone());
-                        let result = tool.execute(std::collections::HashMap::new()).await;
-                        
-                        let _ = _bot.send_message(msg.chat.id, result).await;
-                        return respond(());
-                    } else if normalized_text.starts_with("polymarket ") || normalized_text.starts_with("/polymarket ") {
-                        // Strip 'polymarket' or '/polymarket' prefix to get raw args
-                        let args_str = if normalized_text.starts_with("/") {
-                            &text.trim()[11..]
-                        } else {
-                            &text.trim()[11..]
-                        };
+                    let normalized = text.trim();
+                    let lower = normalized.to_lowercase();
 
+                    // ── FAST PATH: /polymarket CLI commands (bypass LLM) ──
+                    if lower == "polymarket" || lower == "/polymarket"
+                        || lower.starts_with("polymarket ") || lower.starts_with("/polymarket ")
+                    {
+                        // Strip the prefix to get the raw arguments
+                        let args_str = if lower == "polymarket" || lower == "/polymarket" {
+                            ""
+                        } else if normalized.starts_with('/') {
+                            normalized[12..].trim() // skip "/polymarket "
+                        } else {
+                            normalized[11..].trim() // skip "polymarket "
+                        };
+                        let args_lower = args_str.to_lowercase();
+
+                        // Handle --help / help / bare command
+                        if args_str.is_empty() || args_lower == "--help" || args_lower == "help" {
+                            use crate::tools::polymarket_help::POLYMARKET_HELP;
+                            use crate::gateway::utils::chunk_message;
+
+                            let chunks = chunk_message(POLYMARKET_HELP, TELEGRAM_MAX_LEN);
+                            for chunk in chunks {
+                                let _ = _bot.send_message(msg.chat.id, chunk).await;
+                            }
+                            return respond(());
+                        }
+
+                        // Parse and execute the CLI command
                         if let Some(parsed_args) = shlex::split(args_str) {
                             use crate::config::Config;
                             let config = Config::load().unwrap_or_default();
-                            
-                            // Let the agent know it's processing natively via a progress msg
-                            let progress_msg = format!("⚙️ Running native CLI: `polymarket {}`…", parsed_args.join(" "));
+
+                            let progress_msg = format!("⚙️ `polymarket {}`…", parsed_args.join(" "));
                             let _ = _bot.send_message(msg.chat.id, &progress_msg).await;
 
                             let str_args: Vec<&str> = parsed_args.iter().map(|s| s.as_str()).collect();
 
                             match crate::tools::polymarket_common::run_polymarket_cli(&config.tools.polymarket, &str_args).await {
                                 Ok(output) => {
-                                    // Send result in a markdown block
-                                    let content = if output.is_empty() {
-                                        "*(No output)*".to_string()
+                                    let content = if output.trim().is_empty() {
+                                        "✅ Command completed (no output)".to_string()
                                     } else {
                                         output
                                     };
-                                    let _ = _bot.send_message(msg.chat.id, content).await;
+                                    use crate::gateway::utils::chunk_message;
+                                    let chunks = chunk_message(&content, TELEGRAM_MAX_LEN);
+                                    for chunk in chunks {
+                                        let _ = _bot.send_message(msg.chat.id, chunk).await;
+                                    }
                                 }
                                 Err(e) => {
                                     let err_msg = format!("❌ CLI Error:\n{}", e);
                                     let _ = _bot.send_message(msg.chat.id, err_msg).await;
                                 }
                             }
+                            return respond(());
+                        } else {
+                            let _ = _bot.send_message(msg.chat.id, "❌ Could not parse command arguments. Check your quoting.").await;
                             return respond(());
                         }
                     }

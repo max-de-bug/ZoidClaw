@@ -25,6 +25,8 @@ pub mod polymarket_status;
 pub mod polymarket_tags;
 pub mod polymarket_trade;
 pub mod polymarket_wallet;
+pub mod betting_control;
+pub mod polymarket_help;
 pub mod pumpfun;
 pub mod pumpfun_buy;
 pub mod rugcheck;

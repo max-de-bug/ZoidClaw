@@ -111,7 +111,7 @@ pub struct AgentLoop {
 impl AgentLoop {
     pub fn new(
         provider: Box<dyn LlmProvider>,
-        tools: ToolRegistry,
+        tools: Arc<ToolRegistry>,
         config: AgentConfig,
         discovery_state: Arc<Mutex<StreamState>>,
     ) -> Self {
@@ -121,7 +121,7 @@ impl AgentLoop {
 
         Self {
             provider,
-            tools: Arc::new(tools),
+            tools,
             memory,
             skills,
             sessions,
@@ -510,7 +510,7 @@ mod tests {
         }));
         let mut agent = AgentLoop::new(
             Box::new(provider),
-            tools,
+            Arc::new(tools),
             make_config(tmp.clone()),
             discovery_state,
         );
@@ -570,7 +570,7 @@ mod tests {
         }));
         let mut agent = AgentLoop::new(
             Box::new(provider),
-            registry,
+            Arc::new(registry),
             make_config(tmp),
             discovery_state,
         );
@@ -618,7 +618,7 @@ mod tests {
             worker: None,
             active_chat_id: None,
         }));
-        let mut agent = AgentLoop::new(Box::new(provider), registry, config, discovery_state);
+        let mut agent = AgentLoop::new(Box::new(provider), Arc::new(registry), config, discovery_state);
 
         let err = agent
             .process("loop forever", "cli:direct", None)

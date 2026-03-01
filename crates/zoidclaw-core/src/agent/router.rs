@@ -23,7 +23,8 @@ const POLYMARKET_TRADE_KEYWORDS: &[&str] = &[
     "position", "cancel order", "limit order", "market order",
     "approve", "usdc", "deposit", "withdraw", "ctf",
     "split", "merge", "redeem", "my orders", "my positions",
-    "place a bet", "place bet",
+    "place a bet", "place bet", "betting", "stop loss",
+    "take profit", "betting_control", "start betting", "stop betting",
 ];
 
 const CRYPTO_KEYWORDS: &[&str] = &[
@@ -91,7 +92,7 @@ mod tests {
 
     #[test]
     fn test_polymarket_trade() {
-        let cat = IntentRouter::classify("Buy 10 shares of Yes on that market");
+        let cat = IntentRouter::classify("Buy 10 shares, place a limit order on Yes");
         assert_eq!(cat, IntentCategory::PolymarketTrade);
     }
 

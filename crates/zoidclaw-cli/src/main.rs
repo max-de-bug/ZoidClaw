@@ -75,7 +75,9 @@ use zoidclaw_core::tools::solana::{
     SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool,
 };
 use zoidclaw_core::tools::web::{WebFetchTool, WebSearchTool};
+use zoidclaw_core::tools::betting_control::BettingControlTool;
 use zoidclaw_core::tools::ToolRegistry;
+use zoidclaw_core::service::betting::{BettingService, BettingState};
 
 #[derive(Parser)]
 #[command(
@@ -214,7 +216,8 @@ fn setup_agent(
     discovery_state: Arc<tokio::sync::Mutex<zoidclaw_core::service::pumpfun_stream::StreamState>>,
     default_channel: &str,
     default_chat_id: &str,
-) -> Result<(AgentLoop, PathBuf)> {
+    betting_state: Option<Arc<tokio::sync::Mutex<BettingState>>>,
+) -> Result<(AgentLoop, PathBuf, Arc<ToolRegistry>)> {
     let model = model_override
         .unwrap_or(&config.agents.defaults.model)
         .to_string();
@@ -361,6 +364,11 @@ fn setup_agent(
     )), IntentCategory::CryptoTokens);
     tools.register(Box::new(DiscoveryTool::new(bus, discovery_state.clone())), IntentCategory::CryptoTokens);
 
+    // Betting control tool (if betting state is provided)
+    if let Some(ref bs) = betting_state {
+        tools.register(Box::new(BettingControlTool::new(Arc::clone(bs))), IntentCategory::PolymarketTrade);
+    }
+
     let agent_config = AgentConfig {
         model: model_override.map(|s| s.to_string()),
         max_tokens: config.agents.defaults.max_tokens,
@@ -370,8 +378,9 @@ fn setup_agent(
         max_context_tokens: 10_000,
     };
 
-    let agent = AgentLoop::new(Box::new(provider), tools, agent_config, discovery_state);
-    Ok((agent, workspace))
+    let tools = Arc::new(tools);
+    let agent = AgentLoop::new(Box::new(provider), Arc::clone(&tools), agent_config, discovery_state);
+    Ok((agent, workspace, tools))
 }
 
 // ── Bot Command ─────────────────────────────────────────────────────
@@ -447,7 +456,12 @@ async fn cmd_bot() -> Result<()> {
     );
     let discovery_state = stream.state();
 
-    let (agent, workspace) = setup_agent(
+    // 1.5 Initialize betting engine state
+    let betting_state = Arc::new(tokio::sync::Mutex::new(
+        BettingState::new(config.tools.betting.clone()),
+    ));
+
+    let (agent, workspace, tools_arc) = setup_agent(
         &config,
         None,
         Some(Arc::clone(&cron)),
@@ -455,6 +469,7 @@ async fn cmd_bot() -> Result<()> {
         discovery_state,
         "telegram",
         &default_chat_id,
+        Some(Arc::clone(&betting_state)),
     )?;
 
     let inbound_rx = receivers.inbound_rx;
@@ -473,6 +488,7 @@ async fn cmd_bot() -> Result<()> {
         println!("  Cron: {}", cron_locked.status());
     }
     println!("  Press Ctrl+C for graceful shutdown.");
+    println!("  Betting: {}", if config.tools.betting.enabled { "🟢 ENABLED" } else { "🔴 DISABLED (use betting_control to start)" });
     println!("  ─────────────────────────────────────");
 
     // 1. Start transports FIRST so they register their outbound subscribers
@@ -538,6 +554,15 @@ async fn cmd_bot() -> Result<()> {
             tracing::error!("Agent bridge failed: {}", e);
         }
     });
+
+    // 3.5 Betting Engine — spawns the autonomous scan/trade loop
+    {
+        let betting_tools = Arc::clone(&tools_arc);
+        let betting_st = Arc::clone(&betting_state);
+        services.spawn(async move {
+            let _ = BettingService::spawn(betting_st, betting_tools).await;
+        });
+    }
 
     // 4. Cron Ticker — checks for due jobs every 30 seconds.
     {
@@ -625,7 +650,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
             active_chat_id: None,
         },
     ));
-    let (mut agent, workspace) = setup_agent(
+    let (mut agent, workspace, _tools_arc) = setup_agent(
         &config,
         model_override,
         None,
@@ -633,6 +658,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         discovery_state,
         "cli",
         "direct",
+        None,
     )?;
 
     // Print header

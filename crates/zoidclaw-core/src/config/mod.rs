@@ -283,6 +283,7 @@ pub struct ToolsConfig {
     pub solana_private_key: Option<String>,
     pub pumpfun_stream: PumpFunStreamConfig,
     pub polymarket: PolymarketConfig,
+    pub betting: BettingConfig,
 }
 
 impl Default for ToolsConfig {
@@ -295,6 +296,7 @@ impl Default for ToolsConfig {
             solana_private_key: None,
             pumpfun_stream: PumpFunStreamConfig::default(),
             polymarket: PolymarketConfig::default(),
+            betting: BettingConfig::default(),
         }
     }
 }
@@ -304,6 +306,48 @@ impl Default for ToolsConfig {
 pub struct PumpFunStreamConfig {
     pub enabled: bool,
     pub chat_id: String,
+}
+
+// ── Betting Configuration ───────────────────────────────────────────
+
+/// Configuration for the autonomous Polymarket betting engine.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct BettingConfig {
+    /// Whether the betting engine is enabled at startup.
+    pub enabled: bool,
+    /// How often (in minutes) to scan for new opportunities.
+    pub scan_interval_minutes: u64,
+    /// Maximum USDC to risk on a single bet.
+    pub max_bet_size_usdc: f64,
+    /// Maximum USDC loss allowed per day before auto-pausing.
+    pub daily_loss_limit_usdc: f64,
+    /// Minimum LLM confidence score (1-10) required to place a bet.
+    pub min_llm_score: u32,
+    /// Minimum market volume (USDC) to consider a market.
+    pub min_market_volume_usdc: f64,
+    /// Strategy to use: "value", "momentum", "contrarian".
+    pub strategy: String,
+    /// Stop-loss percentage (0-100). Close position if loss exceeds this.
+    pub stop_loss_percent: f64,
+    /// Take-profit percentage (0-100). Consider closing if profit exceeds this.
+    pub take_profit_percent: f64,
+}
+
+impl Default for BettingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            scan_interval_minutes: 15,
+            max_bet_size_usdc: 5.0,
+            daily_loss_limit_usdc: 20.0,
+            min_llm_score: 7,
+            min_market_volume_usdc: 10_000.0,
+            strategy: "value".into(),
+            stop_loss_percent: 25.0,
+            take_profit_percent: 50.0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
