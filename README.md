@@ -1,8 +1,8 @@
 <div>
   <table>
     <tr>
-      <td valign="top" width="200" height="200">
-        <img src="assets/images/crabbybot_logo.png" alt="CrabbyBot Logo" width="200" height="200" style="display: block;">
+      <td align="center" valign="middle" width="200">
+        <img src="assets/images/crabbybotlogo.png" alt="CrabbyBot Logo" width="200" height="200">
       </td>
       <td valign="top">
         <h1>🦀 CrabbyBot</h1>
@@ -12,7 +12,7 @@
         <br><br>
         <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/rust-stable-brightgreen.svg" alt="Rust"></a>
         <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-        <a href="https://github.com/max-de-bug/CrabbyBot"><img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey" alt="Platform"></a>
+        <a href="https://github.com/max-de-bug/crabbybot"><img src="https://img.shields.io/badge/platform-windows%20%7C%20linux%20%7C%20macos-lightgrey" alt="Platform"></a>
       </td>
     </tr>
   </table>
