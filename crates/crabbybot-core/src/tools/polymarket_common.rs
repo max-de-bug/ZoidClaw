@@ -31,7 +31,7 @@ pub fn build_http_client() -> Result<reqwest::Client, reqwest::Error> {
     reqwest::Client::builder()
         .use_rustls_tls()
         .timeout(REQUEST_TIMEOUT)
-        .user_agent("zoidclaw/0.1")
+        .user_agent("CrabbyBot/0.1")
         .resolve("gamma-api.polymarket.com", cloudflare_ip)
         .resolve("clob.polymarket.com", cloudflare_ip)
         .resolve("data-api.polymarket.com", cloudflare_ip)
@@ -63,7 +63,7 @@ impl KeySource {
     pub fn label(&self) -> &'static str {
         match self {
             Self::EnvVar => "POLYMARKET_PRIVATE_KEY env var",
-            Self::BotConfig => "zoidclaw config.json",
+            Self::BotConfig => "CrabbyBot config.json",
             Self::ConfigFile => "~/.config/polymarket/config.json",
             Self::None => "not configured",
         }

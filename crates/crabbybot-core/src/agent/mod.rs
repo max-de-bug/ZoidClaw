@@ -1,6 +1,6 @@
 //! Agent loop: the core processing engine.
 //!
-//! This is the heart of zoidclaw. The loop:
+//! This is the heart of CrabbyBot. The loop:
 //! 1. Receives a user message
 //! 2. Emits a `Typing` indicator so the channel can show a spinner
 //! 3. Builds context (system prompt + token-budget history + current message)
@@ -663,7 +663,7 @@ mod tests {
 
     fn tempdir() -> PathBuf {
         let path = std::env::temp_dir().join(format!(
-            "zoidclaw_test_agent_{}",
+            "CrabbyBot_test_agent_{}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()

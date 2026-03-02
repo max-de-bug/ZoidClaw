@@ -1,11 +1,11 @@
-//! 🦀 zoidclaw CLI — interactive chat, onboarding, and status commands.
+//! 🦀 CrabbyBot CLI — interactive chat, onboarding, and status commands.
 //!
 //! Usage:
-//!   zoidclaw chat          — Start an interactive chat session
-//!   zoidclaw onboard       — Create a default configuration
-//!   zoidclaw status        — Show current configuration and health
-//!   zoidclaw cron list      — List scheduled jobs
-//!   zoidclaw sessions       — List conversation sessions
+//!   CrabbyBot chat          — Start an interactive chat session
+//!   CrabbyBot onboard       — Create a default configuration
+//!   CrabbyBot status        — Show current configuration and health
+//!   CrabbyBot cron list      — List scheduled jobs
+//!   CrabbyBot sessions       — List conversation sessions
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -14,77 +14,77 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-use zoidclaw_core::agent::{AgentConfig, AgentLoop};
-use zoidclaw_core::bus::MessageBus;
-use zoidclaw_core::config::Config;
-use zoidclaw_core::cron::{CronService, Schedule};
+use crabbybot_core::agent::{AgentConfig, AgentLoop};
+use crabbybot_core::bus::MessageBus;
+use crabbybot_core::config::Config;
+use crabbybot_core::cron::{CronService, Schedule};
 #[cfg(feature = "discord")]
-use zoidclaw_core::gateway::channels::discord::DiscordTransport;
+use crabbybot_core::gateway::channels::discord::DiscordTransport;
 #[cfg(feature = "telegram")]
-use zoidclaw_core::gateway::channels::telegram::TelegramTransport;
-use zoidclaw_core::gateway::AgentBridge;
-use zoidclaw_core::provider::openai::OpenAiProvider;
-use zoidclaw_core::provider::LlmProvider;
-use zoidclaw_core::session::SessionManager;
-use zoidclaw_core::tools::alpha_summary::AlphaSummaryTool;
-use zoidclaw_core::tools::discovery::DiscoveryTool;
-use zoidclaw_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
-use zoidclaw_core::tools::polymarket::{
+use crabbybot_core::gateway::channels::telegram::TelegramTransport;
+use crabbybot_core::gateway::AgentBridge;
+use crabbybot_core::provider::openai::OpenAiProvider;
+use crabbybot_core::provider::LlmProvider;
+use crabbybot_core::session::SessionManager;
+use crabbybot_core::tools::alpha_summary::AlphaSummaryTool;
+use crabbybot_core::tools::discovery::DiscoveryTool;
+use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
+use crabbybot_core::tools::polymarket::{
     PolymarketMarketTool, PolymarketSearchTool, PolymarketTrendingTool,
 };
-use zoidclaw_core::tools::polymarket_approve::PolymarketApproveTool;
-use zoidclaw_core::tools::polymarket_bridge::PolymarketBridgeTool;
-use zoidclaw_core::tools::polymarket_comments::PolymarketCommentsTool;
-use zoidclaw_core::tools::polymarket_ctf::{
+use crabbybot_core::tools::polymarket_approve::PolymarketApproveTool;
+use crabbybot_core::tools::polymarket_bridge::PolymarketBridgeTool;
+use crabbybot_core::tools::polymarket_comments::PolymarketCommentsTool;
+use crabbybot_core::tools::polymarket_ctf::{
     PolymarketCtfMergeTool, PolymarketCtfRedeemTool, PolymarketCtfSplitTool,
 };
-use zoidclaw_core::tools::polymarket_data::{
+use crabbybot_core::tools::polymarket_data::{
     PolymarketActivityTool, PolymarketBuilderLeaderboardTool, PolymarketClosedPositionsTool,
     PolymarketHoldersTool, PolymarketLeaderboardTool, PolymarketOpenInterestTool,
     PolymarketPositionsTool, PolymarketTradesTool, PolymarketVolumeTool,
 };
-use zoidclaw_core::tools::polymarket_events::{PolymarketEventDetailTool, PolymarketEventsTool};
-use zoidclaw_core::tools::polymarket_orderbook::{
+use crabbybot_core::tools::polymarket_events::{PolymarketEventDetailTool, PolymarketEventsTool};
+use crabbybot_core::tools::polymarket_orderbook::{
     PolymarketClobMarketTool, PolymarketLastTradeTool, PolymarketOrderbookTool,
     PolymarketTickSizeTool,
 };
-use zoidclaw_core::tools::polymarket_orders::{
+use crabbybot_core::tools::polymarket_orders::{
     PolymarketAccountStatusTool, PolymarketApiKeysTool, PolymarketBalanceTool,
     PolymarketCancelOrderTool, PolymarketMyOrdersTool, PolymarketNotificationsTool,
     PolymarketRewardsTool,
 };
-use zoidclaw_core::tools::polymarket_prices::{PolymarketPriceHistoryTool, PolymarketPriceTool};
-use zoidclaw_core::tools::polymarket_profiles::PolymarketProfileTool;
-use zoidclaw_core::tools::polymarket_series::PolymarketSeriesTool;
-use zoidclaw_core::tools::polymarket_sports::PolymarketSportsTool;
-use zoidclaw_core::tools::polymarket_status::PolymarketStatusTool;
-use zoidclaw_core::tools::polymarket_tags::PolymarketTagsTool;
-use zoidclaw_core::tools::polymarket_trade::{
+use crabbybot_core::tools::polymarket_prices::{PolymarketPriceHistoryTool, PolymarketPriceTool};
+use crabbybot_core::tools::polymarket_profiles::PolymarketProfileTool;
+use crabbybot_core::tools::polymarket_series::PolymarketSeriesTool;
+use crabbybot_core::tools::polymarket_sports::PolymarketSportsTool;
+use crabbybot_core::tools::polymarket_status::PolymarketStatusTool;
+use crabbybot_core::tools::polymarket_tags::PolymarketTagsTool;
+use crabbybot_core::tools::polymarket_trade::{
     PolymarketCreateOrderTool, PolymarketMarketOrderTool,
 };
-use zoidclaw_core::tools::polymarket_wallet::{
+use crabbybot_core::tools::polymarket_wallet::{
     PolymarketWalletCreateTool, PolymarketWalletImportTool, PolymarketWalletTool,
 };
-use zoidclaw_core::tools::pumpfun::{PumpFunSearchTool, PumpFunTokenTool};
-use zoidclaw_core::tools::pumpfun_buy::PumpFunBuyTool;
-use zoidclaw_core::tools::rugcheck::RugCheckTool;
-use zoidclaw_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
-use zoidclaw_core::tools::sentiment::SentimentTool;
-use zoidclaw_core::tools::shell::ExecTool;
-use zoidclaw_core::tools::solana::{
+use crabbybot_core::tools::pumpfun::{PumpFunSearchTool, PumpFunTokenTool};
+use crabbybot_core::tools::pumpfun_buy::PumpFunBuyTool;
+use crabbybot_core::tools::rugcheck::RugCheckTool;
+use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
+use crabbybot_core::tools::sentiment::SentimentTool;
+use crabbybot_core::tools::shell::ExecTool;
+use crabbybot_core::tools::solana::{
     SolanaBalanceTool, SolanaTokenBalancesTool, SolanaTransactionsTool,
 };
-use zoidclaw_core::tools::web::{WebFetchTool, WebSearchTool};
-use zoidclaw_core::tools::betting_control::BettingControlTool;
-use zoidclaw_core::tools::ToolRegistry;
-use zoidclaw_core::service::betting::{BettingService, BettingState};
+use crabbybot_core::tools::web::{WebFetchTool, WebSearchTool};
+use crabbybot_core::tools::betting_control::BettingControlTool;
+use crabbybot_core::tools::ToolRegistry;
+use crabbybot_core::service::betting::{BettingService, BettingState};
 
 #[derive(Parser)]
 #[command(
-    name = "zoidclaw",
+    name = "CrabbyBot",
     version,
     about = "An ultra-lightweight personal AI assistant",
-    long_about = "🦀 zoidclaw — a blazing-fast AI assistant written in Rust.\n\nZero runtime dependencies. Single binary. Direct LLM API access."
+    long_about = "🦀 CrabbyBot — a blazing-fast AI assistant written in Rust.\n\nZero runtime dependencies. Single binary. Direct LLM API access."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -187,7 +187,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-use zoidclaw_core::tools::IntentCategory;
+use crabbybot_core::tools::IntentCategory;
 
 // ── Shared Setup ────────────────────────────────────────────────────
 
@@ -213,7 +213,7 @@ fn setup_agent(
     model_override: Option<&str>,
     cron: Option<Arc<tokio::sync::Mutex<CronService>>>,
     bus: Arc<MessageBus>,
-    discovery_state: Arc<tokio::sync::Mutex<zoidclaw_core::service::pumpfun_stream::StreamState>>,
+    discovery_state: Arc<tokio::sync::Mutex<crabbybot_core::service::pumpfun_stream::StreamState>>,
     default_channel: &str,
     default_chat_id: &str,
     betting_state: Option<Arc<tokio::sync::Mutex<BettingState>>>,
@@ -227,7 +227,7 @@ fn setup_agent(
     if active_providers.is_empty() {
         anyhow::bail!(
             "No LLM provider configured with a real API key. \
-             Run `zoidclaw onboard` first, then edit config.json"
+             Run `CrabbyBot onboard` first, then edit config.json"
         );
     }
 
@@ -245,7 +245,7 @@ fn setup_agent(
         inner_providers.push((name.to_string(), Box::new(p) as Box<dyn LlmProvider>));
     }
 
-    let provider = zoidclaw_core::provider::FallbackProvider::new(inner_providers);
+    let provider = crabbybot_core::provider::FallbackProvider::new(inner_providers);
 
     // Set up tools
     let workspace = config.workspace_path();
@@ -404,7 +404,7 @@ async fn cmd_bot() -> Result<()> {
                 sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
                 if sys.process(Pid::from_u32(pid)).is_some() {
                     anyhow::bail!(
-                        "\n  \x1b[31m❌ Another instance of zoidclaw is already running (PID {})!\x1b[0m\n\
+                        "\n  \x1b[31m❌ Another instance of CrabbyBot is already running (PID {})!\x1b[0m\n\
                          \n     If you are sure it is not running, stop it or delete this file:\n\
                          \n     {}\n",
                         pid,
@@ -445,12 +445,12 @@ async fn cmd_bot() -> Result<()> {
         .cloned()
         .unwrap_or_default();
 
-    let (bus, receivers) = zoidclaw_core::bus::MessageBus::new(100);
+    let (bus, receivers) = crabbybot_core::bus::MessageBus::new(100);
     let bus_arc = Arc::new(bus);
 
     // 0.5 Pre-initialize services that the agent needs to know about
     let stream_config = config.tools.pumpfun_stream.clone();
-    let stream = zoidclaw_core::service::pumpfun_stream::PumpFunStream::new(
+    let stream = crabbybot_core::service::pumpfun_stream::PumpFunStream::new(
         Arc::clone(&bus_arc),
         stream_config,
     );
@@ -477,7 +477,7 @@ async fn cmd_bot() -> Result<()> {
 
     let mut services = tokio::task::JoinSet::new();
 
-    println!("  🦀 zoidclaw bot mode starting...");
+    println!("  🦀 CrabbyBot bot mode starting...");
     println!(
         "  Active channels: Telegram: {}, Discord: {}",
         config.channels.telegram.as_ref().is_some_and(|c| c.enabled),
@@ -536,7 +536,7 @@ async fn cmd_bot() -> Result<()> {
     // 2. Outbound Dispatcher — uses the shared subscriber map, no bus lock needed
     let subs = bus_arc.subscribers();
     services.spawn(async move {
-        zoidclaw_core::bus::dispatch_outbound(subs, receivers.outbound_rx).await;
+        crabbybot_core::bus::dispatch_outbound(subs, receivers.outbound_rx).await;
     });
 
     // 3. Agent Bridge Task — with CancellationToken for graceful shutdown
@@ -586,7 +586,7 @@ async fn cmd_bot() -> Result<()> {
                                 "Cron job fired"
                             );
                             if let Err(e) = bus_tick.inbound_sender().send(
-                                zoidclaw_core::bus::events::InboundMessage {
+                                crabbybot_core::bus::events::InboundMessage {
                                     channel: job.channel.clone(),
                                     chat_id: job.chat_id.clone(),
                                     user_id: "cron".to_string(),
@@ -643,9 +643,9 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
     let model = model_override
         .unwrap_or(&config.agents.defaults.model)
         .to_string();
-    let (bus, _receivers) = zoidclaw_core::bus::MessageBus::new(10);
+    let (bus, _receivers) = crabbybot_core::bus::MessageBus::new(10);
     let discovery_state = Arc::new(tokio::sync::Mutex::new(
-        zoidclaw_core::service::pumpfun_stream::StreamState {
+        crabbybot_core::service::pumpfun_stream::StreamState {
             worker: None,
             active_chat_id: None,
         },
@@ -663,7 +663,7 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
 
     // Print header
     println!();
-    println!("  🦀 zoidclaw v{}", env!("CARGO_PKG_VERSION"));
+    println!("  🦀 CrabbyBot v{}", env!("CARGO_PKG_VERSION"));
     println!(
         "  Providers: {} | Model: {}",
         config
@@ -744,7 +744,7 @@ fn cmd_onboard() -> Result<()> {
     println!();
     println!("  Next steps:");
     println!("  1. Edit the config file and add your API key");
-    println!("  2. Run `zoidclaw chat` to start chatting");
+    println!("  2. Run `CrabbyBot chat` to start chatting");
     println!();
     Ok(())
 }
@@ -756,14 +756,14 @@ fn cmd_status() -> Result<()> {
     let config = Config::load()?;
 
     println!();
-    println!("  🦀 zoidclaw status");
+    println!("  🦀 CrabbyBot status");
     println!("  ─────────────────────────────────────");
 
     // Config file
     if config_path.exists() {
         println!("  Config:    {}", config_path.display());
     } else {
-        println!("  Config:    ❌ Not found (run `zoidclaw onboard`)");
+        println!("  Config:    ❌ Not found (run `CrabbyBot onboard`)");
         return Ok(());
     }
 

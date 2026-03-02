@@ -176,7 +176,7 @@ impl Tool for WebFetchTool {
             .get(url)
             .header(
                 "User-Agent",
-                "Mozilla/5.0 (compatible; zoidclaw/0.1; +https://github.com/zoidclaw)",
+                "Mozilla/5.0 (compatible; CrabbyBot/0.1; +https://github.com/CrabbyBot)",
             )
             .send()
             .await;

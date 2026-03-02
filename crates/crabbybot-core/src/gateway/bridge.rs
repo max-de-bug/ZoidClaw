@@ -247,7 +247,7 @@ async fn handle_command(
 }
 
 fn cmd_help() -> String {
-    "🦀 **Zoidclaw Commands**\n\n\
+    "🦀 **CrabbyBot Commands**\n\n\
      🛠️ **General:**\n\
      `/help` — Show this help message\n\
      `/status` — Bot status (providers, model, uptime)\n\
@@ -276,7 +276,7 @@ async fn cmd_status(
     let cron_status = cron.status();
 
     format!(
-        "🤖 **Zoidclaw Status**\n\n\
+        "🤖 **CrabbyBot Status**\n\n\
          ⏱ Uptime: {}h {}m {}s\n\
          📋 Cron: {}\n\
          📂 Workspace: `{}`",

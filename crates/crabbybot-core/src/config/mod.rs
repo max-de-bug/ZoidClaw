@@ -1,6 +1,6 @@
-//! Configuration module for zoidclaw.
+//! Configuration module for CrabbyBot.
 //!
-//! Loads typed configuration from `~/.zoidclaw/config.json`.
+//! Loads typed configuration from `~/.CrabbyBot/config.json`.
 //! All fields use `serde` for zero-boilerplate deserialization.
 
 use serde::{Deserialize, Serialize};
@@ -25,7 +25,7 @@ impl Config {
     /// Priority:
     /// 1. local `config.json` in current directory
     /// 2. `~/.ferrobot/config.json`
-    /// 3. `~/.zoidclaw/config.json`
+    /// 3. `~/.CrabbyBot/config.json`
     pub fn load() -> anyhow::Result<Self> {
         let paths = vec![
             PathBuf::from("config.json"),
@@ -100,11 +100,11 @@ impl Config {
             .join("config.json")
     }
 
-    /// Get the default config file path (`~/.zoidclaw/config.json`).
+    /// Get the default config file path (`~/.CrabbyBot/config.json`).
     pub fn default_path() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".zoidclaw")
+            .join(".CrabbyBot")
             .join("config.json")
     }
 
@@ -112,7 +112,7 @@ impl Config {
     pub fn config_dir() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".zoidclaw")
+            .join(".CrabbyBot")
     }
 
     /// Get the resolved workspace path.
@@ -275,7 +275,7 @@ pub struct AgentDefaults {
 impl Default for AgentDefaults {
     fn default() -> Self {
         Self {
-            workspace: "~/.zoidclaw/workspace".into(),
+            workspace: "~/.CrabbyBot/workspace".into(),
             model: "anthropic/claude-sonnet-4-5".into(),
             max_tokens: 8192,
             temperature: 0.7,

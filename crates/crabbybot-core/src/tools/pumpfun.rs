@@ -4,7 +4,7 @@
 //! and PumpSwap tokens on Solana. Uses **DexScreener** as the primary data
 //! backend — it's rock-solid, free, and indexes every DEX including Pump.fun.
 //!
-//! This gives Zoidclaw a unique competitive advantage: no other lightweight
+//! This gives CrabbyBot a unique competitive advantage: no other lightweight
 //! AI agent (ZeroClaw, NanoBot, PicoClaw) has native memecoin tooling.
 //!
 //! ## Usage in Telegram

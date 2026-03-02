@@ -1999,6 +1999,62 @@ dependencies = [
 ]
 
 [[package]]
+name = "crabbybot-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "crabbybot-core",
+ "dirs",
+ "futures",
+ "polymarket-client-sdk",
+ "reqwest 0.12.28",
+ "serde_json",
+ "sysinfo",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "crabbybot-core"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "alloy",
+ "anyhow",
+ "async-trait",
+ "base64 0.22.1",
+ "bincode",
+ "bs58",
+ "chrono",
+ "cron",
+ "dirs",
+ "ed25519-dalek",
+ "futures",
+ "rand 0.8.5",
+ "regex",
+ "reqwest 0.12.28",
+ "rust_decimal",
+ "scraper",
+ "serde",
+ "serde_json",
+ "serenity",
+ "shlex",
+ "solana-message",
+ "solana-pubkey",
+ "solana-signature",
+ "solana-transaction",
+ "teloxide",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "crc"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8180,59 +8236,3 @@ name = "zmij"
 version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
-
-[[package]]
-name = "zoidclaw-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "dirs",
- "futures",
- "polymarket-client-sdk",
- "reqwest 0.12.28",
- "serde_json",
- "sysinfo",
- "tokio",
- "tokio-util",
- "tracing",
- "tracing-subscriber",
- "zoidclaw-core",
-]
-
-[[package]]
-name = "zoidclaw-core"
-version = "0.1.0"
-dependencies = [
- "aes-gcm",
- "alloy",
- "anyhow",
- "async-trait",
- "base64 0.22.1",
- "bincode",
- "bs58",
- "chrono",
- "cron",
- "dirs",
- "ed25519-dalek",
- "futures",
- "rand 0.8.5",
- "regex",
- "reqwest 0.12.28",
- "rust_decimal",
- "scraper",
- "serde",
- "serde_json",
- "serenity",
- "shlex",
- "solana-message",
- "solana-pubkey",
- "solana-signature",
- "solana-transaction",
- "teloxide",
- "thiserror 2.0.18",
- "tokio",
- "tokio-tungstenite 0.26.2",
- "tokio-util",
- "tracing",
-]

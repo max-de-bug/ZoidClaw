@@ -1,10 +1,10 @@
 [package]
-name = "zoidclaw-core"
+name = "crabbybot-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Core library for the zoidclaw AI assistant"
+description = "Core library for the crabbybot AI assistant"
 
 [dependencies]
 tokio = { workspace = true }

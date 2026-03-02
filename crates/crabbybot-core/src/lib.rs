@@ -1,4 +1,4 @@
-//! 🦀 zoidclaw-core: Core library for the zoidclaw AI assistant.
+//! 🦀 crabbybot-core: Core library for the CrabbyBot AI assistant.
 //!
 //! This crate contains all the building blocks for an ultra-lightweight AI assistant:
 //!
@@ -13,10 +13,10 @@
 //! # Quick Start
 //!
 //! ```no_run
-//! use zoidclaw_core::config::Config;
-//! use zoidclaw_core::provider::openai::OpenAiProvider;
-//! use zoidclaw_core::agent::{AgentLoop, AgentConfig};
-//! use zoidclaw_core::tools::ToolRegistry;
+//! use crabbybot_core::config::Config;
+//! use crabbybot_core::provider::openai::OpenAiProvider;
+//! use crabbybot_core::agent::{AgentLoop, AgentConfig};
+//! use crabbybot_core::tools::ToolRegistry;
 //!
 //! // Load configuration
 //! let config = Config::load().unwrap();
@@ -39,7 +39,7 @@
 //!     workspace: config.workspace_path(),
 //! };
 //!
-//! use zoidclaw_core::service::pumpfun_stream::StreamState;
+//! use crabbybot_core::service::pumpfun_stream::StreamState;
 //! use std::sync::Arc;
 //! use tokio::sync::Mutex;
 //! let discovery_state = Arc::new(Mutex::new(StreamState { worker: None, active_chat_id: None }));

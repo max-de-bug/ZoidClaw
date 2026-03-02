@@ -1,7 +1,7 @@
 //! Vault — AES-256-GCM encryption at rest for sensitive config values.
 //!
 //! Secrets are encrypted with a randomly generated 256-bit key stored in
-//! `~/.zoidclaw/vault.key`. The key file is created on first use.
+//! `~/.CrabbyBot/vault.key`. The key file is created on first use.
 //!
 //! Encrypted values are prefixed with `vault:` followed by the base64-encoded
 //! nonce + ciphertext. Plain values (without the prefix) are returned as-is,
@@ -31,14 +31,14 @@ const KEY_LEN: usize = 32;
 fn vault_key_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
-        .join(".zoidclaw")
+        .join(".CrabbyBot")
         .join("vault.key")
 }
 
 /// Load or generate the vault encryption key.
 ///
 /// On first call, generates a cryptographically random 256-bit key
-/// and saves it to `~/.zoidclaw/vault.key`.
+/// and saves it to `~/.CrabbyBot/vault.key`.
 fn load_or_create_key() -> anyhow::Result<[u8; KEY_LEN]> {
     let path = vault_key_path();
 

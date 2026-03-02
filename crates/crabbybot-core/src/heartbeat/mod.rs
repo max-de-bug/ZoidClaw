@@ -14,8 +14,8 @@
 //! ```no_run
 //! use std::time::Duration;
 //! use tokio_util::sync::CancellationToken;
-//! use zoidclaw_core::heartbeat::Heartbeat;
-//! use zoidclaw_core::bus::events::InboundMessage;
+//! use crabbybot_core::heartbeat::Heartbeat;
+//! use crabbybot_core::bus::events::InboundMessage;
 //!
 //! # async fn example(tx: tokio::sync::mpsc::Sender<InboundMessage>) {
 //! let cancel = CancellationToken::new();

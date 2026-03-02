@@ -1,17 +1,17 @@
 [package]
-name = "zoidclaw-cli"
+name = "crabbybot-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "CLI binary for the zoidclaw AI assistant"
+description = "CLI binary for the crabbybot AI assistant"
 
 [[bin]]
-name = "zoidclaw"
+name = "crabbybot"
 path = "src/main.rs"
 
 [dependencies]
-zoidclaw-core = { path = "../zoidclaw-core" }
+crabbybot-core = { path = "../crabbybot-core" }
 tokio = { workspace = true }
 serde_json = { workspace = true }
 reqwest = { workspace = true }
@@ -26,8 +26,8 @@ sysinfo = "0.38.2"
 
 [features]
 default = ["telegram"]  # Discord is opt-in: cargo build --features discord
-telegram = ["zoidclaw-core/telegram"]
-discord = ["zoidclaw-core/discord"]
+telegram = ["crabbybot-core/telegram"]
+discord = ["crabbybot-core/discord"]
 
 [dev-dependencies]
 polymarket-client-sdk = { path = "../../polymarket-client-sdk" }

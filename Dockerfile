@@ -14,10 +14,10 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /build/target/release/zoidclaw /usr/local/bin/zoidclaw
+COPY --from=builder /build/target/release/crabbybot /usr/local/bin/crabbybot
 
 # Default configuration mount point.
-VOLUME ["/root/.zoidclaw"]
+VOLUME ["/root/.crabbybot"]
 
-ENTRYPOINT ["zoidclaw"]
+ENTRYPOINT ["crabbybot"]
 CMD ["bot"]

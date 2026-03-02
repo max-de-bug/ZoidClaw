@@ -263,7 +263,7 @@ impl TelegramTransport {
                             let solana_key = config.tools.solana_private_key.as_deref().map(|k| mask(k)).unwrap_or("❌ not set".into());
 
                             let summary = format!(
-"⚙️ ZoidClaw Configuration
+"⚙️ CrabbyBot Configuration
 
 ━━━ 🔑 LLM Providers ━━━
 Groq: {}
