@@ -22,6 +22,7 @@ pub mod polymarket_profiles;
 pub mod polymarket_series;
 pub mod polymarket_sports;
 pub mod polymarket_status;
+pub mod polymarket_stream;
 pub mod polymarket_tags;
 pub mod polymarket_trade;
 pub mod polymarket_wallet;

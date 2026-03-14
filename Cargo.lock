@@ -2033,10 +2033,12 @@ dependencies = [
  "dirs",
  "ed25519-dalek",
  "futures",
+ "futures-util",
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.28",
  "rust_decimal",
+ "rustls 0.23.37",
  "scraper",
  "serde",
  "serde_json",
@@ -4560,16 +4562,19 @@ dependencies = [
  "chrono",
  "clap",
  "dirs",
+ "futures-util",
  "polymarket-client-sdk",
  "predicates",
  "reqwest 0.12.28",
  "rust_decimal",
  "rust_decimal_macros",
+ "rustls 0.23.37",
  "rustyline",
  "serde",
  "serde_json",
  "tabled",
  "tokio",
+ "tokio-tungstenite 0.26.2",
 ]
 
 [[package]]
@@ -5430,6 +5435,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "758025cb5fccfd3bc2fd74708fd4682be41d99e5dff73c377c0646c6012c73a4"
 dependencies = [
  "aws-lc-rs",
+ "log",
  "once_cell",
  "ring",
  "rustls-pki-types",

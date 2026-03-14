@@ -3,6 +3,7 @@ mod commands;
 mod config;
 mod output;
 mod shell;
+mod ws;
 
 use std::process::ExitCode;
 
@@ -60,6 +61,8 @@ enum Commands {
     Bridge(commands::bridge::BridgeArgs),
     /// Manage wallet and authentication
     Wallet(commands::wallet::WalletArgs),
+    /// Real-time WebSocket market data streaming
+    Stream(commands::stream::StreamArgs),
     /// Check API health status
     Status,
     /// Update to the latest version
@@ -185,6 +188,7 @@ pub(crate) async fn run(cli: Cli) -> anyhow::Result<()> {
             commands::wallet::execute(args, &cli.output, cli.private_key.as_deref())
         }
         Commands::Upgrade => commands::upgrade::execute(),
+        Commands::Stream(args) => commands::stream::execute(args, cli.output).await,
         Commands::Status => {
             let status = polymarket_client_sdk::gamma::Client::default()
                 .status()

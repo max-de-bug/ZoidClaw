@@ -59,6 +59,7 @@ use crabbybot_core::tools::polymarket_profiles::PolymarketProfileTool;
 use crabbybot_core::tools::polymarket_series::PolymarketSeriesTool;
 use crabbybot_core::tools::polymarket_sports::PolymarketSportsTool;
 use crabbybot_core::tools::polymarket_status::PolymarketStatusTool;
+use crabbybot_core::tools::polymarket_stream::PolymarketStreamTool;
 use crabbybot_core::tools::polymarket_tags::PolymarketTagsTool;
 use crabbybot_core::tools::polymarket_trade::{
     PolymarketCreateOrderTool, PolymarketMarketOrderTool,
@@ -352,6 +353,7 @@ fn setup_agent(
     tools.register(Box::new(PolymarketBuilderLeaderboardTool::new()), IntentCategory::PolymarketRead);
     tools.register(Box::new(PolymarketBridgeTool::new()), IntentCategory::PolymarketRead);
     tools.register(Box::new(PolymarketStatusTool::new()), IntentCategory::PolymarketRead);
+    tools.register(Box::new(PolymarketStreamTool::new()), IntentCategory::PolymarketRead);
 
     // Polymarket Gamma browsing (tags, series, comments, profiles, sports)
     tools.register(Box::new(PolymarketTagsTool::new()), IntentCategory::PolymarketRead);
