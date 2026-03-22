@@ -36,6 +36,7 @@ pub mod sentiment;
 pub mod shell;
 pub mod solana;
 pub mod web;
+pub mod prediction;
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -77,6 +78,8 @@ pub enum IntentCategory {
     PolymarketTrade,
     /// RugCheck, PumpFun, token/coin specific things
     CryptoTokens,
+    /// Prediction engine: multi-agent simulation and forecasting
+    Prediction,
     /// Fallback for general conversation
     #[default]
     General,
@@ -90,6 +93,7 @@ impl IntentCategory {
             Self::PolymarketRead => "polymarket_read",
             Self::PolymarketTrade => "polymarket_trade",
             Self::CryptoTokens => "crypto_tokens",
+            Self::Prediction => "prediction",
             Self::General => "general",
         }
     }

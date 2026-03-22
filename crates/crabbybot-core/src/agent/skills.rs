@@ -181,6 +181,7 @@ fn extract_intent_category(content: &str) -> Option<IntentCategory> {
         "polymarket-read" | "polymarket_read" => Some(IntentCategory::PolymarketRead),
         "polymarket-trade" | "polymarket_trade" => Some(IntentCategory::PolymarketTrade),
         "crypto" | "crypto-tokens" | "crypto_tokens" => Some(IntentCategory::CryptoTokens),
+        "prediction" => Some(IntentCategory::Prediction),
         "system" => Some(IntentCategory::System),
         "research" => Some(IntentCategory::Research),
         "general" => Some(IntentCategory::General),

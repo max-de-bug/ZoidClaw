@@ -45,6 +45,13 @@ const RESEARCH_KEYWORDS: &[&str] = &[
     "look up", "find out", "research",
 ];
 
+const PREDICTION_KEYWORDS: &[&str] = &[
+    "predict", "forecast", "simulate", "simulation", "scenario",
+    "what if", "what happens", "ontology", "knowledge graph",
+    "agents", "multi-agent", "social simulation", "prediction",
+    "graph_query", "predict tool",
+];
+
 impl IntentRouter {
     /// Classify a message into an intent category using keyword matching.
     ///
@@ -59,6 +66,7 @@ impl IntentRouter {
             (IntentCategory::CryptoTokens,    Self::score(&lower, CRYPTO_KEYWORDS)),
             (IntentCategory::System,          Self::score(&lower, SYSTEM_KEYWORDS)),
             (IntentCategory::Research,        Self::score(&lower, RESEARCH_KEYWORDS)),
+            (IntentCategory::Prediction,      Self::score(&lower, PREDICTION_KEYWORDS)),
         ];
 
         // Pick the category with the highest score; fall back to General

@@ -2034,6 +2034,7 @@ dependencies = [
  "ed25519-dalek",
  "futures",
  "futures-util",
+ "petgraph",
  "rand 0.8.5",
  "regex",
  "reqwest 0.12.28",
@@ -2054,6 +2055,7 @@ dependencies = [
  "tokio-tungstenite 0.26.2",
  "tokio-util",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -2797,6 +2799,12 @@ dependencies = [
  "rustc-hex",
  "static_assertions",
 ]
+
+[[package]]
+name = "fixedbitset"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "flate2"
@@ -4379,6 +4387,16 @@ checksum = "e0848c601009d37dfa3430c4666e147e49cdcf1b92ecd3e63657d8a5f19da662"
 dependencies = [
  "memchr",
  "ucd-trie",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
+dependencies = [
+ "fixedbitset",
+ "indexmap 2.13.0",
 ]
 
 [[package]]
