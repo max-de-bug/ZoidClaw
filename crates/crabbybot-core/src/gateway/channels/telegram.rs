@@ -257,20 +257,31 @@ impl TelegramTransport {
                             let groq_key = config.providers.groq.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
                             let openai_key = config.providers.openai.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
                             let anthropic_key = config.providers.anthropic.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
+                            let deepseek_key = config.providers.deepseek.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
                             let gemini_key = config.providers.gemini.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
                             let openrouter_key = config.providers.openrouter.as_ref().map(|p| mask(&p.api_key)).unwrap_or("❌ not set".into());
                             let poly_key = config.tools.polymarket.private_key.as_deref().map(|k| mask(k)).unwrap_or("❌ not set".into());
                             let solana_key = config.tools.solana_private_key.as_deref().map(|k| mask(k)).unwrap_or("❌ not set".into());
 
+                            let active_prov = config.providers.find_active().map(|(n, _)| n).unwrap_or("");
+                            let p_label = |name: &str, label: &str| -> String {
+                                if name == active_prov {
+                                    format!("{} 🟢 (Active)", label)
+                                } else {
+                                    label.to_string()
+                                }
+                            };
+
                             let summary = format!(
 "⚙️ CrabbyBot Configuration
 
 ━━━ 🔑 LLM Providers ━━━
-Groq: {}
-OpenAI: {}
-Anthropic: {}
-Gemini: {}
-OpenRouter: {}
+{}: {}
+{}: {}
+{}: {}
+{}: {}
+{}: {}
+{}: {}
 
 ━━━ 🤖 Agent ━━━
 Model: {}
@@ -289,6 +300,7 @@ Daily Loss Limit: ${}
 /config set groq_key <KEY>
 /config set openai_key <KEY>
 /config set anthropic_key <KEY>
+/config set deepseek_key <KEY>
 /config set gemini_key <KEY>
 /config set openrouter_key <KEY>
 /config set polymarket_key <KEY>
@@ -300,7 +312,12 @@ Daily Loss Limit: ${}
 ━━━ 🔄 Reset a value ━━━
 /config reset <SETTING_NAME>
 /config reset all",
-                                groq_key, openai_key, anthropic_key, gemini_key, openrouter_key,
+                                p_label("groq", "Groq"), groq_key,
+                                p_label("openai", "OpenAI"), openai_key,
+                                p_label("anthropic", "Anthropic"), anthropic_key,
+                                p_label("deepseek", "DeepSeek"), deepseek_key,
+                                p_label("gemini", "Gemini"), gemini_key,
+                                p_label("openrouter", "OpenRouter"), openrouter_key,
                                 config.agents.defaults.model,
                                 config.agents.defaults.max_tokens,
                                 poly_key, solana_key,
@@ -330,7 +347,7 @@ Daily Loss Limit: ${}
                             // Determine if this key holds a sensitive secret
                             let is_secret = matches!(key.as_str(),
                                 "groq_key" | "openai_key" | "anthropic_key"
-                                | "gemini_key" | "openrouter_key"
+                                | "deepseek_key" | "gemini_key" | "openrouter_key"
                                 | "polymarket_key" | "solana_key"
                             );
 
@@ -373,6 +390,15 @@ Daily Loss Limit: ${}
                                     let entry = config.providers.gemini.get_or_insert_with(Default::default);
                                     entry.api_key = store_value;
                                     Ok(format!("Gemini API key set ({})", preview))
+                                }
+                                "deepseek_key" => {
+                                    let entry = config.providers.deepseek.get_or_insert_with(Default::default);
+                                    entry.api_key = store_value.clone();
+                                    // Default DeepSeek to their official API base
+                                    if entry.api_base.is_none() {
+                                        entry.api_base = Some("https://api.deepseek.com/v1".into());
+                                    }
+                                    Ok(format!("DeepSeek API key set ({})", preview))
                                 }
                                 "openrouter_key" => {
                                     let entry = config.providers.openrouter.get_or_insert_with(Default::default);
@@ -446,6 +472,7 @@ Daily Loss Limit: ${}
                                 if let Some(p) = config.providers.groq.as_mut() { p.api_key.clear(); modified = true; }
                                 if let Some(p) = config.providers.openai.as_mut() { p.api_key.clear(); modified = true; }
                                 if let Some(p) = config.providers.anthropic.as_mut() { p.api_key.clear(); modified = true; }
+                                if let Some(p) = config.providers.deepseek.as_mut() { p.api_key.clear(); modified = true; }
                                 if let Some(p) = config.providers.gemini.as_mut() { p.api_key.clear(); modified = true; }
                                 if let Some(p) = config.providers.openrouter.as_mut() { p.api_key.clear(); modified = true; }
                                 config.agents.defaults.model = crate::config::Config::default().agents.defaults.model;
@@ -456,6 +483,7 @@ Daily Loss Limit: ${}
                                     "groq_key" => if let Some(p) = config.providers.groq.as_mut() { p.api_key.clear(); modified = true; },
                                     "openai_key" => if let Some(p) = config.providers.openai.as_mut() { p.api_key.clear(); modified = true; },
                                     "anthropic_key" => if let Some(p) = config.providers.anthropic.as_mut() { p.api_key.clear(); modified = true; },
+                                    "deepseek_key" => if let Some(p) = config.providers.deepseek.as_mut() { p.api_key.clear(); modified = true; },
                                     "gemini_key" => if let Some(p) = config.providers.gemini.as_mut() { p.api_key.clear(); modified = true; },
                                     "openrouter_key" => if let Some(p) = config.providers.openrouter.as_mut() { p.api_key.clear(); modified = true; },
                                     "model" => { config.agents.defaults.model = crate::config::Config::default().agents.defaults.model; modified = true; },
