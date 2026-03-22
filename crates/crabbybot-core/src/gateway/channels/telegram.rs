@@ -298,7 +298,7 @@ Daily Loss Limit: ${}
 /config set daily_limit <AMOUNT>
 
 ━━━ 🔄 Reset a value ━━━
-/config reset <KEY>
+/config reset <SETTING_NAME>
 /config reset all",
                                 groq_key, openai_key, anthropic_key, gemini_key, openrouter_key,
                                 config.agents.defaults.model,
@@ -321,7 +321,7 @@ Daily Loss Limit: ${}
                             let set_args = args_str[4..].trim();
                             let parts: Vec<&str> = set_args.splitn(2, ' ').collect();
                             if parts.len() < 2 {
-                                let _ = _bot.send_message(msg.chat.id, "❌ Usage: /config set <key> <value>\n🔒 Your message was auto-deleted for security.").await;
+                                let _ = _bot.send_message(msg.chat.id, "❌ Usage: /config set <setting_name> <value>\n🔒 Your message was auto-deleted for security.").await;
                                 return respond(());
                             }
                             let key = parts[0].to_lowercase();
@@ -436,7 +436,7 @@ Daily Loss Limit: ${}
                             let key = reset_args.to_lowercase();
                             
                             if key.is_empty() {
-                                let _ = _bot.send_message(msg.chat.id, "❌ Usage: /config reset <key> | /config reset all").await;
+                                let _ = _bot.send_message(msg.chat.id, "❌ Usage: /config reset <setting_name> | /config reset all").await;
                                 return respond(());
                             }
 
@@ -448,6 +448,7 @@ Daily Loss Limit: ${}
                                 if let Some(p) = config.providers.anthropic.as_mut() { p.api_key.clear(); modified = true; }
                                 if let Some(p) = config.providers.gemini.as_mut() { p.api_key.clear(); modified = true; }
                                 if let Some(p) = config.providers.openrouter.as_mut() { p.api_key.clear(); modified = true; }
+                                config.agents.defaults.model = crate::config::Config::default().agents.defaults.model;
                                 if config.tools.polymarket.private_key.is_some() { config.tools.polymarket.private_key = None; modified = true; }
                                 if config.tools.solana_private_key.is_some() { config.tools.solana_private_key = None; modified = true; }
                             } else {
@@ -457,10 +458,11 @@ Daily Loss Limit: ${}
                                     "anthropic_key" => if let Some(p) = config.providers.anthropic.as_mut() { p.api_key.clear(); modified = true; },
                                     "gemini_key" => if let Some(p) = config.providers.gemini.as_mut() { p.api_key.clear(); modified = true; },
                                     "openrouter_key" => if let Some(p) = config.providers.openrouter.as_mut() { p.api_key.clear(); modified = true; },
+                                    "model" => { config.agents.defaults.model = crate::config::Config::default().agents.defaults.model; modified = true; },
                                     "polymarket_key" => { config.tools.polymarket.private_key = None; modified = true; },
                                     "solana_key" => { config.tools.solana_private_key = None; modified = true; },
                                     _ => {
-                                        let _ = _bot.send_message(msg.chat.id, format!("❌ Unknown key: `{}`. Cannot reset.", key)).await;
+                                        let _ = _bot.send_message(msg.chat.id, format!("❌ Unknown model: `{}`. Cannot reset.", key)).await;
                                         return respond(());
                                     }
                                 }
