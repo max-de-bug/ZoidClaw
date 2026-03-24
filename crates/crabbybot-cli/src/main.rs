@@ -28,7 +28,6 @@ use crabbybot_core::provider::openai::OpenAiProvider;
 use crabbybot_core::provider::LlmProvider;
 use crabbybot_core::session::SessionManager;
 use crabbybot_core::tools::alpha_summary::AlphaSummaryTool;
-use crabbybot_core::tools::discovery::DiscoveryTool;
 use crabbybot_core::tools::filesystem::{EditFileTool, ListDirTool, ReadFileTool, WriteFileTool};
 use crabbybot_core::tools::polymarket::{
     PolymarketMarketTool, PolymarketSearchTool, PolymarketTrendingTool,
@@ -67,8 +66,6 @@ use crabbybot_core::tools::polymarket_trade::{
 use crabbybot_core::tools::polymarket_wallet::{
     PolymarketWalletCreateTool, PolymarketWalletImportTool, PolymarketWalletTool,
 };
-use crabbybot_core::tools::pumpfun::{PumpFunSearchTool, PumpFunTokenTool};
-use crabbybot_core::tools::pumpfun_buy::PumpFunBuyTool;
 use crabbybot_core::tools::rugcheck::RugCheckTool;
 use crabbybot_core::tools::schedule::{CancelScheduleTool, ListSchedulesTool, ScheduleTaskTool};
 use crabbybot_core::tools::sentiment::SentimentTool;
@@ -228,7 +225,6 @@ fn setup_agent(
     model_override: Option<&str>,
     cron: Option<Arc<tokio::sync::Mutex<CronService>>>,
     bus: Arc<MessageBus>,
-    discovery_state: Arc<tokio::sync::Mutex<crabbybot_core::service::pumpfun_stream::StreamState>>,
     default_channel: &str,
     default_chat_id: &str,
     betting_state: Option<Arc<tokio::sync::Mutex<BettingState>>>,
@@ -324,10 +320,6 @@ fn setup_agent(
         &config.tools.solana_rpc_url,
     )), IntentCategory::CryptoTokens);
 
-    // Pump.fun tools
-    tools.register(Box::new(PumpFunTokenTool::new(client.clone())), IntentCategory::CryptoTokens);
-    tools.register(Box::new(PumpFunSearchTool::new(client.clone())), IntentCategory::CryptoTokens);
-
     // Polymarket read-only tools (markets, events, prices, data)
     let mut pm = config.tools.polymarket.clone();
     if let Some(ref pk) = pm.private_key {
@@ -392,19 +384,6 @@ fn setup_agent(
     tools.register(Box::new(RugCheckTool::new(client.clone())), IntentCategory::CryptoTokens);
     tools.register(Box::new(SentimentTool::new(client.clone())), IntentCategory::CryptoTokens);
     tools.register(Box::new(AlphaSummaryTool::new(client.clone())), IntentCategory::CryptoTokens);
-    let solana_private_key = config.tools.solana_private_key.as_ref().map(|k| {
-        crabbybot_core::vault::decrypt(k).unwrap_or_else(|e| {
-            tracing::warn!("Failed to decrypt Solana private key: {}", e);
-            k.clone()
-        })
-    });
-
-    tools.register(Box::new(PumpFunBuyTool::new(
-        client.clone(),
-        &config.tools.solana_rpc_url,
-        solana_private_key,
-    )), IntentCategory::CryptoTokens);
-    tools.register(Box::new(DiscoveryTool::new(bus, discovery_state.clone())), IntentCategory::CryptoTokens);
 
     // Betting control tool (if betting state is provided)
     if let Some(ref bs) = betting_state {
@@ -430,7 +409,7 @@ fn setup_agent(
     tools.register(Box::new(GraphQueryTool { workspace: workspace.clone() }), IntentCategory::Prediction);
 
     let tools = Arc::new(tools);
-    let agent = AgentLoop::new(provider, Arc::clone(&tools), agent_config, discovery_state);
+    let agent = AgentLoop::new(provider, Arc::clone(&tools), agent_config);
     Ok((agent, workspace, tools))
 }
 
@@ -526,14 +505,6 @@ async fn cmd_bot_once(cancel: CancellationToken) -> Result<()> {
     let (bus, receivers) = crabbybot_core::bus::MessageBus::new(100);
     let bus_arc = Arc::new(bus);
 
-    // 0.5 Pre-initialize services that the agent needs to know about
-    let stream_config = config.tools.pumpfun_stream.clone();
-    let stream = crabbybot_core::service::pumpfun_stream::PumpFunStream::new(
-        Arc::clone(&bus_arc),
-        stream_config,
-    );
-    let discovery_state = stream.state();
-
     // 1.5 Initialize betting engine state
     let betting_state = Arc::new(tokio::sync::Mutex::new(
         BettingState::new(config.tools.betting.clone()),
@@ -544,14 +515,12 @@ async fn cmd_bot_once(cancel: CancellationToken) -> Result<()> {
         None,
         Some(Arc::clone(&cron)),
         Arc::clone(&bus_arc),
-        discovery_state,
         "telegram",
         &default_chat_id,
         Some(Arc::clone(&betting_state)),
     )?;
 
     let inbound_rx = receivers.inbound_rx;
-    let internal_rx = receivers.internal_rx;
 
     let mut services = tokio::task::JoinSet::new();
 
@@ -682,13 +651,6 @@ async fn cmd_bot_once(cancel: CancellationToken) -> Result<()> {
         });
     }
 
-    // 5. Pump.fun Stream — real-time token discovery (reactive)
-    {
-        services.spawn(async move {
-            stream.run(internal_rx).await;
-        });
-    }
-
     // Wait for cancel token, Ctrl+C, or for any critical service to exit unexpectedly.
     tokio::select! {
         _ = cancel.cancelled() => {
@@ -730,18 +692,11 @@ async fn cmd_chat(session_key: &str, model_override: Option<&str>) -> Result<()>
         .unwrap_or(&config.agents.defaults.model)
         .to_string();
     let (bus, _receivers) = crabbybot_core::bus::MessageBus::new(10);
-    let discovery_state = Arc::new(tokio::sync::Mutex::new(
-        crabbybot_core::service::pumpfun_stream::StreamState {
-            worker: None,
-            active_chat_id: None,
-        },
-    ));
     let (mut agent, workspace, _tools_arc) = setup_agent(
         &config,
         model_override,
         None,
         Arc::new(bus),
-        discovery_state,
         "cli",
         "direct",
         None,

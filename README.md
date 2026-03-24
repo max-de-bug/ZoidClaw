@@ -18,11 +18,11 @@
   </table>
 </div>
 
-**CrabbyBot** is  a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time Pump.fun alerts, automated rug security, and precision trading to your Telegram or CLI.
+**CrabbyBot** is a pure Rust AI powerhouse inspired by the best of **nanobot** and **OpenClaw**. Engineered for sub-millisecond execution, it bridges sophisticated LLM logic with the Solana trenches, delivering real-time intelligent monitoring, automated security, and precision trading to your Telegram or CLI.
 
 ## 🚀 Key Features
 
-- **⚡ Crypto Native**: First-class support for **Solana** and **Pump.fun**, including real-time alerts, rug detection, and alpha scoring.
+- **⚡ Crypto Native**: First-class support for **Solana**, including real-time alerts, token security checks, and alpha scoring.
 - **💬 Multi-Channel**: Native bridges for **Telegram**, **Discord**, and a powerful **CLI**.
 - **🎯 Shortcut Commands**: High-velocity slash commands (`/portfolio`, `/alpha`, `/buy`) for instant on-chain interaction.
 - **⏰ Proactive Autonomy**: Integrated cron engine for scheduling recurring AI research and monitoring tasks.

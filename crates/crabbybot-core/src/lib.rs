@@ -39,12 +39,7 @@
 //!     workspace: config.workspace_path(),
 //! };
 //!
-//! use crabbybot_core::service::pumpfun_stream::StreamState;
-//! use std::sync::Arc;
-//! use tokio::sync::Mutex;
-//! let discovery_state = Arc::new(Mutex::new(StreamState { worker: None, active_chat_id: None }));
-//! let provider: Box<dyn crabbybot_core::provider::LlmProvider> = Box::new(provider);
-//! let mut agent = AgentLoop::new(Arc::new(Mutex::new(provider)), Arc::new(tools), agent_config, discovery_state);
+//! let mut agent = AgentLoop::new(Arc::new(Mutex::new(provider)), Arc::new(tools), agent_config);
 //! ```
 
 pub mod agent;

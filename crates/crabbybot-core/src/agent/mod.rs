@@ -25,7 +25,6 @@ use crate::bus::events::{Button, OutboundMessage};
 use crate::bus::MessageBus;
 use crate::provider::types::{ChatMessage, FunctionCall, ToolCallMessage};
 use crate::provider::LlmProvider;
-use crate::service::pumpfun_stream::StreamState;
 use crate::session::SessionManager;
 use context::ContextBuilder;
 use memory::MemoryStore;
@@ -105,7 +104,6 @@ pub struct AgentLoop {
     skills: SkillsLoader,
     sessions: SessionManager,
     config: AgentConfig,
-    discovery_state: Arc<Mutex<StreamState>>,
 }
 
 impl AgentLoop {
@@ -113,7 +111,6 @@ impl AgentLoop {
         provider: Arc<Mutex<Box<dyn LlmProvider>>>,
         tools: Arc<ToolRegistry>,
         config: AgentConfig,
-        discovery_state: Arc<Mutex<StreamState>>,
     ) -> Self {
         let memory = MemoryStore::new(&config.workspace);
         let skills = SkillsLoader::new(&config.workspace, None);
@@ -126,7 +123,6 @@ impl AgentLoop {
             skills,
             sessions,
             config,
-            discovery_state,
         }
     }
 
@@ -165,14 +161,7 @@ impl AgentLoop {
         }
 
         // ── 2. Build context components ─────────────────────────────────
-        let service_status = {
-            let state = self.discovery_state.lock().await;
-            if let Some(ref id) = state.active_chat_id {
-                format!("Pump.fun Discovery: ACTIVE (sending to {})", id)
-            } else {
-                "Pump.fun Discovery: INACTIVE".to_string()
-            }
-        };
+        let service_status = "Pump.fun Discovery: INACTIVE (Removed)";
 
         let ctx = ContextBuilder::new(
             &self.config.workspace,
@@ -551,15 +540,10 @@ mod tests {
         let tmp = tempdir();
         let provider = FakeProvider::new(vec![FakeProvider::final_response("Hello!")]);
         let tools = ToolRegistry::new();
-        let discovery_state = Arc::new(Mutex::new(StreamState {
-            worker: None,
-            active_chat_id: None,
-        }));
         let mut agent = AgentLoop::new(
             Arc::new(Mutex::new(Box::new(provider))),
             Arc::new(tools),
             make_config(tmp.clone()),
-            discovery_state,
         );
 
         let reply = agent.process("Hi", "cli:direct", None).await.unwrap();
@@ -611,15 +595,10 @@ mod tests {
             name: "counter_b".into(),
         }), IntentCategory::General);
 
-        let discovery_state = Arc::new(Mutex::new(StreamState {
-            worker: None,
-            active_chat_id: None,
-        }));
         let mut agent = AgentLoop::new(
             Arc::new(Mutex::new(Box::new(provider))),
             Arc::new(registry),
             make_config(tmp),
-            discovery_state,
         );
         let reply = agent.process("run both", "cli:direct", None).await.unwrap();
 
@@ -661,11 +640,7 @@ mod tests {
             max_iterations: 3,
             ..make_config(tmp)
         };
-        let discovery_state = Arc::new(Mutex::new(StreamState {
-            worker: None,
-            active_chat_id: None,
-        }));
-        let mut agent = AgentLoop::new(Arc::new(Mutex::new(Box::new(provider))), Arc::new(registry), config, discovery_state);
+        let mut agent = AgentLoop::new(Arc::new(Mutex::new(Box::new(provider))), Arc::new(registry), config);
 
         let err = agent
             .process("loop forever", "cli:direct", None)

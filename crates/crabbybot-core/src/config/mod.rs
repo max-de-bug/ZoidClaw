@@ -300,7 +300,6 @@ pub struct ToolsConfig {
     pub exec: ExecConfig,
     pub solana_rpc_url: String,
     pub solana_private_key: Option<String>,
-    pub pumpfun_stream: PumpFunStreamConfig,
     pub polymarket: PolymarketConfig,
     pub betting: BettingConfig,
 }
@@ -313,18 +312,10 @@ impl Default for ToolsConfig {
             exec: ExecConfig::default(),
             solana_rpc_url: "https://api.mainnet-beta.solana.com".into(),
             solana_private_key: None,
-            pumpfun_stream: PumpFunStreamConfig::default(),
             polymarket: PolymarketConfig::default(),
             betting: BettingConfig::default(),
         }
     }
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default, rename_all = "camelCase")]
-pub struct PumpFunStreamConfig {
-    pub enabled: bool,
-    pub chat_id: String,
 }
 
 // ── Betting Configuration ───────────────────────────────────────────

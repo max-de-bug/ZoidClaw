@@ -5,7 +5,6 @@
 //! tools and dispatches tool calls by name.
 
 pub mod alpha_summary;
-pub mod discovery;
 pub mod filesystem;
 pub mod polymarket;
 pub mod polymarket_approve;
@@ -28,8 +27,6 @@ pub mod polymarket_trade;
 pub mod polymarket_wallet;
 pub mod betting_control;
 pub mod polymarket_help;
-pub mod pumpfun;
-pub mod pumpfun_buy;
 pub mod rugcheck;
 pub mod schedule;
 pub mod sentiment;
@@ -76,7 +73,7 @@ pub enum IntentCategory {
     PolymarketRead,
     /// Trading, viewing wallet, managing Polymarket positions
     PolymarketTrade,
-    /// RugCheck, PumpFun, token/coin specific things
+    /// RugCheck, token/coin specific things
     CryptoTokens,
     /// Prediction engine: multi-agent simulation and forecasting
     Prediction,
